@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "lastVerified": "2026-10-14",
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "currency": "USD",
+  "unit": "per million tokens",
+  "notes": "Standard API prices. Batch, fast mode and US-only inference are not used and not modeled. Edit this file and bump lastVerified when Anthropic changes prices.",
+  "models": [
+    {
+      "id": "claude-haiku-5-5",
+      "rates": { "input": "0.10", "output": "0.50", "cacheWrite5m": "0.125", "cacheWrite1h": "0.20", "cacheRead": "0.01" },
+      "longPrompt": {
+        "aboveTokens": 100000,
+        "rates": { "input": "0.50", "output": "2.50", "cacheWrite5m": "0.625", "cacheWrite1h": "1.00", "cacheRead": "0.05" }
+      }
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "rates": { "input": "2", "output": "10", "cacheWrite5m": "2.50", "cacheWrite1h": "4", "cacheRead": "0.10" }
+    },
+    {
+      "id": "claude-opus-5-5",
+      "rates": { "input": "4", "output": "20", "cacheWrite5m": "5", "cacheWrite1h": "8", "cacheRead": "0.20" }
+    },
+    {
+      "id": "claude-fable-5-1",
+      "rates": { "input": "10", "output": "50", "cacheWrite5m": "12.50", "cacheWrite1h": "20", "cacheRead": "0.25" }
+    }
+  ]
+}

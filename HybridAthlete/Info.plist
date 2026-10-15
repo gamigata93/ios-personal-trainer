@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Your Coach reads your workouts and fitness data, such as heart rate, VO2 max and sleep, to build your training plan. Your data stays on your phone.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Sora-Variable.ttf</string>
+		<string>DMSans-Variable.ttf</string>
+	</array>
+</dict>
+</plist>

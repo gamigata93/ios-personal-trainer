@@ -1,0 +1,1472 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    {
+      "id": "vo2max.male.20-29",
+      "metric": "vo2max",
+      "sex": "male",
+      "ageMin": 20,
+      "ageMax": 29,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 28.6
+        },
+        {
+          "p": 20,
+          "v": 35.2
+        },
+        {
+          "p": 30,
+          "v": 40.0
+        },
+        {
+          "p": 40,
+          "v": 43.6
+        },
+        {
+          "p": 50,
+          "v": 46.5
+        },
+        {
+          "p": 60,
+          "v": 49.0
+        },
+        {
+          "p": 70,
+          "v": 51.9
+        },
+        {
+          "p": 80,
+          "v": 54.5
+        },
+        {
+          "p": 90,
+          "v": 58.6
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.male.30-39",
+      "metric": "vo2max",
+      "sex": "male",
+      "ageMin": 30,
+      "ageMax": 39,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 24.9
+        },
+        {
+          "p": 20,
+          "v": 29.8
+        },
+        {
+          "p": 30,
+          "v": 33.5
+        },
+        {
+          "p": 40,
+          "v": 37.0
+        },
+        {
+          "p": 50,
+          "v": 39.7
+        },
+        {
+          "p": 60,
+          "v": 43.4
+        },
+        {
+          "p": 70,
+          "v": 46.4
+        },
+        {
+          "p": 80,
+          "v": 50.0
+        },
+        {
+          "p": 90,
+          "v": 55.5
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.male.40-49",
+      "metric": "vo2max",
+      "sex": "male",
+      "ageMin": 40,
+      "ageMax": 49,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 22.1
+        },
+        {
+          "p": 20,
+          "v": 26.7
+        },
+        {
+          "p": 30,
+          "v": 29.7
+        },
+        {
+          "p": 40,
+          "v": 32.4
+        },
+        {
+          "p": 50,
+          "v": 35.3
+        },
+        {
+          "p": 60,
+          "v": 37.9
+        },
+        {
+          "p": 70,
+          "v": 40.9
+        },
+        {
+          "p": 80,
+          "v": 45.2
+        },
+        {
+          "p": 90,
+          "v": 50.8
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.male.50-59",
+      "metric": "vo2max",
+      "sex": "male",
+      "ageMin": 50,
+      "ageMax": 59,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 18.6
+        },
+        {
+          "p": 20,
+          "v": 22.2
+        },
+        {
+          "p": 30,
+          "v": 24.5
+        },
+        {
+          "p": 40,
+          "v": 26.9
+        },
+        {
+          "p": 50,
+          "v": 29.2
+        },
+        {
+          "p": 60,
+          "v": 31.8
+        },
+        {
+          "p": 70,
+          "v": 34.3
+        },
+        {
+          "p": 80,
+          "v": 38.3
+        },
+        {
+          "p": 90,
+          "v": 43.4
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.male.60-69",
+      "metric": "vo2max",
+      "sex": "male",
+      "ageMin": 60,
+      "ageMax": 69,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 15.8
+        },
+        {
+          "p": 20,
+          "v": 18.5
+        },
+        {
+          "p": 30,
+          "v": 20.7
+        },
+        {
+          "p": 40,
+          "v": 22.8
+        },
+        {
+          "p": 50,
+          "v": 24.6
+        },
+        {
+          "p": 60,
+          "v": 26.5
+        },
+        {
+          "p": 70,
+          "v": 28.7
+        },
+        {
+          "p": 80,
+          "v": 32.0
+        },
+        {
+          "p": 90,
+          "v": 37.1
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.male.70-79",
+      "metric": "vo2max",
+      "sex": "male",
+      "ageMin": 70,
+      "ageMax": 79,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 13.6
+        },
+        {
+          "p": 20,
+          "v": 15.9
+        },
+        {
+          "p": 30,
+          "v": 17.3
+        },
+        {
+          "p": 40,
+          "v": 19.1
+        },
+        {
+          "p": 50,
+          "v": 20.6
+        },
+        {
+          "p": 60,
+          "v": 22.2
+        },
+        {
+          "p": 70,
+          "v": 23.8
+        },
+        {
+          "p": 80,
+          "v": 25.9
+        },
+        {
+          "p": 90,
+          "v": 29.4
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.male.80-89",
+      "metric": "vo2max",
+      "sex": "male",
+      "ageMin": 80,
+      "ageMax": 89,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 12.9
+        },
+        {
+          "p": 20,
+          "v": 14.8
+        },
+        {
+          "p": 30,
+          "v": 16.1
+        },
+        {
+          "p": 40,
+          "v": 16.6
+        },
+        {
+          "p": 50,
+          "v": 17.6
+        },
+        {
+          "p": 60,
+          "v": 18.4
+        },
+        {
+          "p": 70,
+          "v": 20.0
+        },
+        {
+          "p": 80,
+          "v": 21.4
+        },
+        {
+          "p": 90,
+          "v": 22.8
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.female.20-29",
+      "metric": "vo2max",
+      "sex": "female",
+      "ageMin": 20,
+      "ageMax": 29,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 22.5
+        },
+        {
+          "p": 20,
+          "v": 27.2
+        },
+        {
+          "p": 30,
+          "v": 30.8
+        },
+        {
+          "p": 40,
+          "v": 34.0
+        },
+        {
+          "p": 50,
+          "v": 36.6
+        },
+        {
+          "p": 60,
+          "v": 39.0
+        },
+        {
+          "p": 70,
+          "v": 41.8
+        },
+        {
+          "p": 80,
+          "v": 44.8
+        },
+        {
+          "p": 90,
+          "v": 49.0
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.female.30-39",
+      "metric": "vo2max",
+      "sex": "female",
+      "ageMin": 30,
+      "ageMax": 39,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 18.6
+        },
+        {
+          "p": 20,
+          "v": 21.9
+        },
+        {
+          "p": 30,
+          "v": 24.2
+        },
+        {
+          "p": 40,
+          "v": 26.4
+        },
+        {
+          "p": 50,
+          "v": 28.3
+        },
+        {
+          "p": 60,
+          "v": 31.0
+        },
+        {
+          "p": 70,
+          "v": 33.6
+        },
+        {
+          "p": 80,
+          "v": 37.0
+        },
+        {
+          "p": 90,
+          "v": 42.1
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.female.40-49",
+      "metric": "vo2max",
+      "sex": "female",
+      "ageMin": 40,
+      "ageMax": 49,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 17.2
+        },
+        {
+          "p": 20,
+          "v": 19.7
+        },
+        {
+          "p": 30,
+          "v": 21.8
+        },
+        {
+          "p": 40,
+          "v": 23.9
+        },
+        {
+          "p": 50,
+          "v": 25.7
+        },
+        {
+          "p": 60,
+          "v": 27.7
+        },
+        {
+          "p": 70,
+          "v": 30.0
+        },
+        {
+          "p": 80,
+          "v": 33.0
+        },
+        {
+          "p": 90,
+          "v": 37.8
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.female.50-59",
+      "metric": "vo2max",
+      "sex": "female",
+      "ageMin": 50,
+      "ageMax": 59,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 16.5
+        },
+        {
+          "p": 20,
+          "v": 18.5
+        },
+        {
+          "p": 30,
+          "v": 20.1
+        },
+        {
+          "p": 40,
+          "v": 21.5
+        },
+        {
+          "p": 50,
+          "v": 22.9
+        },
+        {
+          "p": 60,
+          "v": 24.6
+        },
+        {
+          "p": 70,
+          "v": 26.3
+        },
+        {
+          "p": 80,
+          "v": 28.4
+        },
+        {
+          "p": 90,
+          "v": 32.4
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.female.60-69",
+      "metric": "vo2max",
+      "sex": "female",
+      "ageMin": 60,
+      "ageMax": 69,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 13.4
+        },
+        {
+          "p": 20,
+          "v": 15.4
+        },
+        {
+          "p": 30,
+          "v": 17.0
+        },
+        {
+          "p": 40,
+          "v": 18.3
+        },
+        {
+          "p": 50,
+          "v": 19.6
+        },
+        {
+          "p": 60,
+          "v": 20.9
+        },
+        {
+          "p": 70,
+          "v": 22.4
+        },
+        {
+          "p": 80,
+          "v": 24.3
+        },
+        {
+          "p": 90,
+          "v": 27.3
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.female.70-79",
+      "metric": "vo2max",
+      "sex": "female",
+      "ageMin": 70,
+      "ageMax": 79,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 12.3
+        },
+        {
+          "p": 20,
+          "v": 14.0
+        },
+        {
+          "p": 30,
+          "v": 15.2
+        },
+        {
+          "p": 40,
+          "v": 16.2
+        },
+        {
+          "p": 50,
+          "v": 17.2
+        },
+        {
+          "p": 60,
+          "v": 18.3
+        },
+        {
+          "p": 70,
+          "v": 19.6
+        },
+        {
+          "p": 80,
+          "v": 20.8
+        },
+        {
+          "p": 90,
+          "v": 22.8
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "vo2max.female.80-89",
+      "metric": "vo2max",
+      "sex": "female",
+      "ageMin": 80,
+      "ageMax": 89,
+      "unit": "ml/(kg·min)",
+      "anchors": [
+        {
+          "p": 10,
+          "v": 11.4
+        },
+        {
+          "p": 20,
+          "v": 12.6
+        },
+        {
+          "p": 30,
+          "v": 13.7
+        },
+        {
+          "p": 40,
+          "v": 14.7
+        },
+        {
+          "p": 50,
+          "v": 15.4
+        },
+        {
+          "p": 60,
+          "v": 16.0
+        },
+        {
+          "p": 70,
+          "v": 17.3
+        },
+        {
+          "p": 80,
+          "v": 18.4
+        },
+        {
+          "p": 90,
+          "v": 20.8
+        }
+      ],
+      "source": "FRIEND registry, Kaminsky LA et al., Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing, Mayo Clin Proc 2022;97(2):285-293, treadmill"
+    },
+    {
+      "id": "restingHeartRate.male.16-19",
+      "metric": "restingHeartRate",
+      "sex": "male",
+      "ageMin": 16,
+      "ageMax": 19,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 46.0
+        },
+        {
+          "p": 2.5,
+          "v": 50.0
+        },
+        {
+          "p": 5,
+          "v": 52.0
+        },
+        {
+          "p": 10,
+          "v": 56.0
+        },
+        {
+          "p": 25,
+          "v": 61.0
+        },
+        {
+          "p": 50,
+          "v": 69.0
+        },
+        {
+          "p": 75,
+          "v": 78.0
+        },
+        {
+          "p": 90,
+          "v": 87.0
+        },
+        {
+          "p": 95,
+          "v": 92.0
+        },
+        {
+          "p": 97.5,
+          "v": 95.0
+        },
+        {
+          "p": 99,
+          "v": 104.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.male.20-39",
+      "metric": "restingHeartRate",
+      "sex": "male",
+      "ageMin": 20,
+      "ageMax": 39,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 47.0
+        },
+        {
+          "p": 2.5,
+          "v": 50.0
+        },
+        {
+          "p": 5,
+          "v": 52.0
+        },
+        {
+          "p": 10,
+          "v": 55.0
+        },
+        {
+          "p": 25,
+          "v": 61.0
+        },
+        {
+          "p": 50,
+          "v": 69.0
+        },
+        {
+          "p": 75,
+          "v": 76.0
+        },
+        {
+          "p": 90,
+          "v": 84.0
+        },
+        {
+          "p": 95,
+          "v": 89.0
+        },
+        {
+          "p": 97.5,
+          "v": 95.0
+        },
+        {
+          "p": 99,
+          "v": 101.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.male.40-59",
+      "metric": "restingHeartRate",
+      "sex": "male",
+      "ageMin": 40,
+      "ageMax": 59,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 46.0
+        },
+        {
+          "p": 2.5,
+          "v": 49.0
+        },
+        {
+          "p": 5,
+          "v": 52.0
+        },
+        {
+          "p": 10,
+          "v": 55.0
+        },
+        {
+          "p": 25,
+          "v": 61.0
+        },
+        {
+          "p": 50,
+          "v": 68.0
+        },
+        {
+          "p": 75,
+          "v": 77.0
+        },
+        {
+          "p": 90,
+          "v": 85.0
+        },
+        {
+          "p": 95,
+          "v": 90.0
+        },
+        {
+          "p": 97.5,
+          "v": 95.0
+        },
+        {
+          "p": 99,
+          "v": 104.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.male.60-79",
+      "metric": "restingHeartRate",
+      "sex": "male",
+      "ageMin": 60,
+      "ageMax": 79,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 45.0
+        },
+        {
+          "p": 2.5,
+          "v": 48.0
+        },
+        {
+          "p": 5,
+          "v": 50.0
+        },
+        {
+          "p": 10,
+          "v": 54.0
+        },
+        {
+          "p": 25,
+          "v": 60.0
+        },
+        {
+          "p": 50,
+          "v": 67.0
+        },
+        {
+          "p": 75,
+          "v": 75.0
+        },
+        {
+          "p": 90,
+          "v": 84.0
+        },
+        {
+          "p": 95,
+          "v": 91.0
+        },
+        {
+          "p": 97.5,
+          "v": 98.0
+        },
+        {
+          "p": 99,
+          "v": 102.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.male.80+",
+      "metric": "restingHeartRate",
+      "sex": "male",
+      "ageMin": 80,
+      "ageMax": 120,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 2.5,
+          "v": 48.0
+        },
+        {
+          "p": 5,
+          "v": 51.0
+        },
+        {
+          "p": 10,
+          "v": 54.0
+        },
+        {
+          "p": 25,
+          "v": 61.0
+        },
+        {
+          "p": 50,
+          "v": 68.0
+        },
+        {
+          "p": 75,
+          "v": 78.0
+        },
+        {
+          "p": 90,
+          "v": 86.0
+        },
+        {
+          "p": 95,
+          "v": 94.0
+        },
+        {
+          "p": 97.5,
+          "v": 97.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.female.16-19",
+      "metric": "restingHeartRate",
+      "sex": "female",
+      "ageMin": 16,
+      "ageMax": 19,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 50.0
+        },
+        {
+          "p": 2.5,
+          "v": 54.0
+        },
+        {
+          "p": 5,
+          "v": 58.0
+        },
+        {
+          "p": 10,
+          "v": 62.0
+        },
+        {
+          "p": 25,
+          "v": 69.0
+        },
+        {
+          "p": 50,
+          "v": 77.0
+        },
+        {
+          "p": 75,
+          "v": 85.0
+        },
+        {
+          "p": 90,
+          "v": 94.0
+        },
+        {
+          "p": 95,
+          "v": 99.0
+        },
+        {
+          "p": 97.5,
+          "v": 103.0
+        },
+        {
+          "p": 99,
+          "v": 108.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.female.20-39",
+      "metric": "restingHeartRate",
+      "sex": "female",
+      "ageMin": 20,
+      "ageMax": 39,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 52.0
+        },
+        {
+          "p": 2.5,
+          "v": 55.0
+        },
+        {
+          "p": 5,
+          "v": 57.0
+        },
+        {
+          "p": 10,
+          "v": 60.0
+        },
+        {
+          "p": 25,
+          "v": 66.0
+        },
+        {
+          "p": 50,
+          "v": 74.0
+        },
+        {
+          "p": 75,
+          "v": 82.0
+        },
+        {
+          "p": 90,
+          "v": 89.0
+        },
+        {
+          "p": 95,
+          "v": 95.0
+        },
+        {
+          "p": 97.5,
+          "v": 99.0
+        },
+        {
+          "p": 99,
+          "v": 104.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.female.40-59",
+      "metric": "restingHeartRate",
+      "sex": "female",
+      "ageMin": 40,
+      "ageMax": 59,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 51.0
+        },
+        {
+          "p": 2.5,
+          "v": 53.0
+        },
+        {
+          "p": 5,
+          "v": 56.0
+        },
+        {
+          "p": 10,
+          "v": 59.0
+        },
+        {
+          "p": 25,
+          "v": 64.0
+        },
+        {
+          "p": 50,
+          "v": 71.0
+        },
+        {
+          "p": 75,
+          "v": 79.0
+        },
+        {
+          "p": 90,
+          "v": 86.0
+        },
+        {
+          "p": 95,
+          "v": 92.0
+        },
+        {
+          "p": 97.5,
+          "v": 97.0
+        },
+        {
+          "p": 99,
+          "v": 101.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.female.60-79",
+      "metric": "restingHeartRate",
+      "sex": "female",
+      "ageMin": 60,
+      "ageMax": 79,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 52.0
+        },
+        {
+          "p": 2.5,
+          "v": 54.0
+        },
+        {
+          "p": 5,
+          "v": 56.0
+        },
+        {
+          "p": 10,
+          "v": 59.0
+        },
+        {
+          "p": 25,
+          "v": 64.0
+        },
+        {
+          "p": 50,
+          "v": 70.0
+        },
+        {
+          "p": 75,
+          "v": 78.0
+        },
+        {
+          "p": 90,
+          "v": 86.0
+        },
+        {
+          "p": 95,
+          "v": 92.0
+        },
+        {
+          "p": 97.5,
+          "v": 96.0
+        },
+        {
+          "p": 99,
+          "v": 102.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.female.80+",
+      "metric": "restingHeartRate",
+      "sex": "female",
+      "ageMin": 80,
+      "ageMax": 120,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 2.5,
+          "v": 53.0
+        },
+        {
+          "p": 5,
+          "v": 56.0
+        },
+        {
+          "p": 10,
+          "v": 59.0
+        },
+        {
+          "p": 25,
+          "v": 64.0
+        },
+        {
+          "p": 50,
+          "v": 71.0
+        },
+        {
+          "p": 75,
+          "v": 77.0
+        },
+        {
+          "p": 90,
+          "v": 85.0
+        },
+        {
+          "p": 95,
+          "v": 93.0
+        },
+        {
+          "p": 97.5,
+          "v": 98.0
+        },
+        {
+          "p": 99,
+          "v": 100.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.all.16-19",
+      "metric": "restingHeartRate",
+      "sex": "all",
+      "ageMin": 16,
+      "ageMax": 19,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 48.0
+        },
+        {
+          "p": 2.5,
+          "v": 51.0
+        },
+        {
+          "p": 5,
+          "v": 54.0
+        },
+        {
+          "p": 10,
+          "v": 58.0
+        },
+        {
+          "p": 25,
+          "v": 64.0
+        },
+        {
+          "p": 50,
+          "v": 73.0
+        },
+        {
+          "p": 75,
+          "v": 82.0
+        },
+        {
+          "p": 90,
+          "v": 90.0
+        },
+        {
+          "p": 95,
+          "v": 95.0
+        },
+        {
+          "p": 97.5,
+          "v": 101.0
+        },
+        {
+          "p": 99,
+          "v": 105.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.all.20-39",
+      "metric": "restingHeartRate",
+      "sex": "all",
+      "ageMin": 20,
+      "ageMax": 39,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 48.0
+        },
+        {
+          "p": 2.5,
+          "v": 51.0
+        },
+        {
+          "p": 5,
+          "v": 54.0
+        },
+        {
+          "p": 10,
+          "v": 57.0
+        },
+        {
+          "p": 25,
+          "v": 64.0
+        },
+        {
+          "p": 50,
+          "v": 71.0
+        },
+        {
+          "p": 75,
+          "v": 79.0
+        },
+        {
+          "p": 90,
+          "v": 87.0
+        },
+        {
+          "p": 95,
+          "v": 92.0
+        },
+        {
+          "p": 97.5,
+          "v": 98.0
+        },
+        {
+          "p": 99,
+          "v": 103.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.all.40-59",
+      "metric": "restingHeartRate",
+      "sex": "all",
+      "ageMin": 40,
+      "ageMax": 59,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 47.0
+        },
+        {
+          "p": 2.5,
+          "v": 51.0
+        },
+        {
+          "p": 5,
+          "v": 54.0
+        },
+        {
+          "p": 10,
+          "v": 57.0
+        },
+        {
+          "p": 25,
+          "v": 62.0
+        },
+        {
+          "p": 50,
+          "v": 70.0
+        },
+        {
+          "p": 75,
+          "v": 78.0
+        },
+        {
+          "p": 90,
+          "v": 86.0
+        },
+        {
+          "p": 95,
+          "v": 91.0
+        },
+        {
+          "p": 97.5,
+          "v": 96.0
+        },
+        {
+          "p": 99,
+          "v": 102.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.all.60-79",
+      "metric": "restingHeartRate",
+      "sex": "all",
+      "ageMin": 60,
+      "ageMax": 79,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 1,
+          "v": 47.0
+        },
+        {
+          "p": 2.5,
+          "v": 50.0
+        },
+        {
+          "p": 5,
+          "v": 54.0
+        },
+        {
+          "p": 10,
+          "v": 56.0
+        },
+        {
+          "p": 25,
+          "v": 62.0
+        },
+        {
+          "p": 50,
+          "v": 69.0
+        },
+        {
+          "p": 75,
+          "v": 77.0
+        },
+        {
+          "p": 90,
+          "v": 85.0
+        },
+        {
+          "p": 95,
+          "v": 91.0
+        },
+        {
+          "p": 97.5,
+          "v": 97.0
+        },
+        {
+          "p": 99,
+          "v": 102.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    },
+    {
+      "id": "restingHeartRate.all.80+",
+      "metric": "restingHeartRate",
+      "sex": "all",
+      "ageMin": 80,
+      "ageMax": 120,
+      "unit": "bpm",
+      "anchors": [
+        {
+          "p": 2.5,
+          "v": 51.0
+        },
+        {
+          "p": 5,
+          "v": 54.0
+        },
+        {
+          "p": 10,
+          "v": 57.0
+        },
+        {
+          "p": 25,
+          "v": 62.0
+        },
+        {
+          "p": 50,
+          "v": 70.0
+        },
+        {
+          "p": 75,
+          "v": 77.0
+        },
+        {
+          "p": 90,
+          "v": 86.0
+        },
+        {
+          "p": 95,
+          "v": 93.0
+        },
+        {
+          "p": 97.5,
+          "v": 98.0
+        },
+        {
+          "p": 99,
+          "v": 101.0
+        }
+      ],
+      "source": "NHANES 1999-2008, Ostchega Y et al., National Health Statistics Reports No. 41, 2011"
+    }
+  ]
+}

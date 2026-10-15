@@ -6,6 +6,12 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1B2C3D40000000000000021 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000000000011 /* Domain */; };
+		A1B2C3D40000000000000022 /* Application in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000000000012 /* Application */; };
+		A1B2C3D40000000000000023 /* Infrastructure in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000000000013 /* Infrastructure */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		46649D063078DB0B005C0C0D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +35,22 @@
 		46649D0F3078DB0B005C0C0D /* HybridAthleteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HybridAthleteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1B2C3D40000000000000001 /* Exceptions for "HybridAthlete" folder in "HybridAthlete" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 46649CF73078DB0A005C0C0D /* HybridAthlete */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		46649CFA3078DB0A005C0C0D /* HybridAthlete */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1B2C3D40000000000000001 /* Exceptions for "HybridAthlete" folder in "HybridAthlete" target */,
+			);
 			path = HybridAthlete;
 			sourceTree = "<group>";
 		};
@@ -51,6 +70,9 @@
 		46649CF53078DB0A005C0C0D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				A1B2C3D40000000000000021 /* Domain in Frameworks */,
+				A1B2C3D40000000000000022 /* Application in Frameworks */,
+				A1B2C3D40000000000000023 /* Infrastructure in Frameworks */,
 			);
 		};
 		46649D023078DB0B005C0C0D /* Frameworks */ = {
@@ -103,6 +125,11 @@
 				46649CFA3078DB0A005C0C0D /* HybridAthlete */,
 			);
 			name = HybridAthlete;
+			packageProductDependencies = (
+				A1B2C3D40000000000000011 /* Domain */,
+				A1B2C3D40000000000000012 /* Application */,
+				A1B2C3D40000000000000013 /* Infrastructure */,
+			);
 			productName = HybridAthlete;
 			productReference = 46649CF83078DB0A005C0C0D /* HybridAthlete.app */;
 			productType = "com.apple.product-type.application";
@@ -181,6 +208,9 @@
 			);
 			mainGroup = 46649CEF3078DB0A005C0C0D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1B2C3D40000000000000002 /* XCLocalSwiftPackageReference "Packages/HybridAthleteCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 46649CF93078DB0A005C0C0D /* Products */;
 			projectDirPath = "";
@@ -362,12 +392,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = HybridAthlete/HybridAthlete.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = HybridAthlete/HybridAthlete.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CVQ2THUKAC;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HybridAthlete/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -404,12 +438,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = HybridAthlete/HybridAthlete.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = HybridAthlete/HybridAthlete.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CVQ2THUKAC;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HybridAthlete/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -496,6 +534,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CVQ2THUKAC;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
@@ -520,6 +559,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CVQ2THUKAC;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
@@ -575,6 +615,31 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A1B2C3D40000000000000002 /* XCLocalSwiftPackageReference "Packages/HybridAthleteCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HybridAthleteCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D40000000000000011 /* Domain */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D40000000000000002 /* XCLocalSwiftPackageReference "Packages/HybridAthleteCore" */;
+			productName = Domain;
+		};
+		A1B2C3D40000000000000012 /* Application */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D40000000000000002 /* XCLocalSwiftPackageReference "Packages/HybridAthleteCore" */;
+			productName = Application;
+		};
+		A1B2C3D40000000000000013 /* Infrastructure */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D40000000000000002 /* XCLocalSwiftPackageReference "Packages/HybridAthleteCore" */;
+			productName = Infrastructure;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 46649CF03078DB0A005C0C0D /* Project object */;
 	validationLevel = 1;
