@@ -24,7 +24,7 @@ enum CompositionRoot {
         // The plan lives in the database (trainer.sqlite); a plan from the old JSON file
         // is imported once before the launch route. DEBUG fakes keep their plan, runs,
         // sleep and recovery in memory so they never mix with real ones.
-        let database = health.usesRealHealth ? try? DatabaseProvider.onDisk() : try? DatabaseProvider.inMemory()
+        var database = health.usesRealHealth ? try? DatabaseProvider.onDisk() : try? DatabaseProvider.inMemory()
         var plans: any PlanRepository = database.map { GRDBPlanRepository(database: $0, clock: clock) } ?? UnavailablePlanRepository()
         var prepareStorage: @MainActor () async -> Void = {}
         if health.usesRealHealth {
@@ -38,6 +38,11 @@ enum CompositionRoot {
         var launch = MainLaunch()
         var models = LanguageModels.apple(database: database, clock: clock)
         var generator: any PlanGenerator = PlanGeneratorKind.template.make(models: models)
+        let loadProfile = LoadHeartRateProfile(snapshots: health.cache, recovery: recoveryCache)
+        var workoutDetail: WorkoutDetailFactory = { _ in HealthKitWorkoutDetailSource() }
+        var heartRateProfile: @Sendable () async -> HeartRateProfile? = { await loadProfile.execute() }
+        var coachNoteModels: CoachNoteModels?
+        var preferenceOverride: CoachModelPreference?
         #if DEBUG
         if let scenario = options.fakeLLM {
             models = LanguageModels.fake(scenario, clock: clock)
@@ -45,15 +50,43 @@ enum CompositionRoot {
         generator = options.planGenerator.make(models: models, fallback: options.planFallback, delaySeconds: options.planDelay)
         launch = MainLaunch(startTab: options.startTab, calendarMonth: options.calendarMonth)
         if options.seedsPlan {
-            plans = (try? GRDBPlanRepository.inMemory(seededWith: SeedPlan.plan(createdAt: clock.now()), clock: clock))
-                ?? UnavailablePlanRepository()
+            // Coach notes live next to the seeded plan (their sessions are foreign keys).
+            database = try? GRDBPlanRepository.seededDatabase(SeedPlan.plan(createdAt: clock.now()))
+            plans = database.map { GRDBPlanRepository(database: $0, clock: clock) } ?? UnavailablePlanRepository()
+        }
+        if !health.usesRealHealth {
+            // DEBUG fakes: the fixed profile (max 182, resting 49) and canned workout detail.
+            heartRateProfile = { FakeHeartRateProfile.profile }
+            let fakesRuns = options.fakesRuns
+            let high = options.fakeHeartRateHigh
+            let scenario = options.workoutDetailScenario
+            workoutDetail = { plans in
+                let runs = FakeRunsHealthDataSource(
+                    base: health.source, activePlan: { await plans.loadActive() }, clock: clock, calendar: .current, highHeartRate: high
+                )
+                return FakeWorkoutDetailSource(
+                    scenario: scenario,
+                    runs: { fakesRuns ? await runs.allRuns() : [] },
+                    activePlan: { await plans.loadActive() },
+                    highHeartRate: high
+                )
+            }
         }
         if options.fakesRuns {
             runsCache = InMemoryCompletedRunsCache()
+            let high = options.fakeHeartRateHigh
             homeHealth = { plans in
-                FakeRunsHealthDataSource(base: health.source, activePlan: { await plans.loadActive() }, clock: clock, calendar: .current)
+                FakeRunsHealthDataSource(base: health.source, activePlan: { await plans.loadActive() }, clock: clock, calendar: .current, highHeartRate: high)
             }
         }
+        if let scenario = options.fakeCoachNote {
+            coachNoteModels = CoachNoteModels.fake(scenario, spend: models.spend, clock: clock)
+            if scenario == .rules { preferenceOverride = .ruleBased }
+        }
+        // Fake Health data never reaches a real model unless asked for: the rules write
+        // the notes, so UI tests stay fast and repeatable.
+        if !health.usesRealHealth && options.fakeCoachNote == nil { preferenceOverride = .ruleBased }
+        if let preference = options.coachModel { preferenceOverride = preference }
         if let scenario = options.sleepScenario {
             sleepCache = InMemorySleepCache(FakeSleepHealthDataSource.seededCache(scenario, clock: clock, calendar: .current))
             let withoutSleep = homeHealth
@@ -69,6 +102,17 @@ enum CompositionRoot {
             }
         }
         #endif
+        let noteDatabase = database ?? (try? DatabaseProvider.inMemory())
+        let notes = NoteInputs(
+            notes: noteDatabase.map { GRDBCoachNoteRepository(database: $0) as any CoachNoteRepository } ?? UnavailableCoachNoteRepository(),
+            analyses: noteDatabase.map { GRDBWorkoutAnalysisRepository(database: $0) as any WorkoutAnalysisRepository }
+                ?? UnavailableWorkoutAnalysisRepository(),
+            detail: workoutDetail,
+            profile: heartRateProfile,
+            models: coachNoteModels ?? CoachNoteModels(coaching: models.coaching, availability: models.availability),
+            settings: models.spend.settings,
+            preferenceOverride: preferenceOverride
+        )
         return makeRootViewModel(
             health: health,
             plans: plans,
@@ -77,6 +121,7 @@ enum CompositionRoot {
             launch: launch,
             generator: generator,
             models: models,
+            notes: notes,
             prepareStorage: prepareStorage
         )
     }
@@ -90,6 +135,38 @@ enum CompositionRoot {
     /// The Health source Home reads runs, sleep and recovery from, given the plan store
     /// (DEBUG `-fakeRuns` derives runs from the active plan).
     private typealias HomeHealthFactory = @MainActor (any PlanRepository) -> any HealthDataSource
+
+    /// Where one workout's detail is read from, given the plan store (DEBUG fakes derive it).
+    private typealias WorkoutDetailFactory = @MainActor (any PlanRepository) -> any WorkoutDetailSource
+
+    /// The model that writes coach notes and what says whether it can run: the
+    /// real (gated) models, or DEBUG `-fakeCoachNote`.
+    struct CoachNoteModels {
+        let coaching: any CoachingModel
+        let availability: any ModelAvailabilityChecker
+
+        #if DEBUG
+        /// Canned notes through the same spend gate and ledger; every Apple model is available.
+        static func fake(_ scenario: FakeCoachNoteScenario, spend: SpendServices, clock: any Clock) -> CoachNoteModels {
+            let meter = LLMCallMeter(prices: spend.prices, recorder: spend.ledger, clock: clock)
+            return CoachNoteModels(
+                coaching: SpendGatedCoachingModel(inner: FakeCoachNoteModel(scenario: scenario, meter: meter), gate: spend.gate),
+                availability: FakeModelAvailabilityChecker(scenario: .ok, clock: clock, secrets: spend.secrets)
+            )
+        }
+        #endif
+    }
+
+    /// Everything the coach notes are built from, in one place.
+    private struct NoteInputs {
+        let notes: any CoachNoteRepository
+        let analyses: any WorkoutAnalysisRepository
+        let detail: WorkoutDetailFactory
+        let profile: @Sendable () async -> HeartRateProfile?
+        let models: CoachNoteModels
+        let settings: any LabSettingsStore
+        let preferenceOverride: CoachModelPreference?
+    }
 
     /// What the DEBUG Model Lab reads: the models and the cached Health summaries.
     private struct LabInputs {
@@ -245,6 +322,7 @@ enum CompositionRoot {
         launch: MainLaunch,
         generator: any PlanGenerator,
         models: LanguageModels,
+        notes: NoteInputs,
         prepareStorage: @escaping @MainActor () async -> Void
     ) -> RootViewModel {
         let clock = clock
@@ -292,7 +370,7 @@ enum CompositionRoot {
             makeHome: { onNoPlan in
                 makeMain(
                     plans: plans, stores: stores, health: homeHealth(plans), clock: clock, launch: launch,
-                    lab: LabInputs(models: models, snapshots: health.cache), onNoPlan: onNoPlan
+                    lab: LabInputs(models: models, snapshots: health.cache), notes: notes, onNoPlan: onNoPlan
                 )
             },
             prepareStorage: prepareStorage
@@ -308,6 +386,7 @@ enum CompositionRoot {
         clock: any Clock,
         launch: MainLaunch,
         lab: LabInputs,
+        notes inputs: NoteInputs,
         onNoPlan: @escaping @MainActor () -> Void
     ) -> MainScreens {
         let plans = ActivePlanStore(
@@ -322,6 +401,33 @@ enum CompositionRoot {
             refreshCompletedRuns: RefreshCompletedRuns(health: health, cache: stores.runs, clock: clock, calendar: .current),
             clock: clock
         )
+        // Coach notes: analysis, facts, the provider chain and the store, in one place.
+        let prepareNote = PrepareWorkoutNote(
+            analyze: AnalyzeWorkout(source: inputs.detail(repository), analyses: inputs.analyses, clock: clock),
+            build: BuildWorkoutNoteRequest(
+                profile: inputs.profile, sleep: stores.sleep, recovery: stores.recovery, analyses: inputs.analyses,
+                clock: clock, calendar: .current
+            )
+        )
+        let notes = CoachNoteStore(
+            plans: plans,
+            runs: runs,
+            generate: GenerateDetailedCoachNote(
+                prepare: prepareNote,
+                write: WriteWorkoutNote(
+                    coaching: inputs.models.coaching,
+                    availability: inputs.models.availability,
+                    settings: inputs.settings,
+                    preferenceOverride: inputs.preferenceOverride
+                ),
+                notes: inputs.notes,
+                clock: clock
+            ),
+            prepare: prepareNote,
+            loadNotes: LoadCoachNotes(notes: inputs.notes),
+            today: { LocalDate(date: clock.now(), calendar: .current) }
+        )
+        runs.onRefreshed = { await notes.afterRefresh() }
         let loadCachedSleep = LoadCachedSleep(cache: stores.sleep)
         let refreshRecoverySection = RefreshRecoverySection(
             refreshSleep: RefreshSleep(health: health, cache: stores.sleep, clock: clock, calendar: .current),
@@ -342,26 +448,25 @@ enum CompositionRoot {
             ),
             deleteActivePlan: DeleteActivePlan(plans: repository),
             clock: clock,
+            notes: notes,
             onNoPlan: onNoPlan
         )
         #if DEBUG
         home.sdkHasRmssdType = HealthKitDataSource.sdkHasRmssdType
-        let loadCachedRecovery = LoadCachedRecovery(cache: stores.recovery)
         let spend = lab.models.spend
         home.makeModelLab = {
             ModelLabViewModel(
                 runner: RunModelExperiment(
-                    coaching: lab.models.coaching,
+                    coaching: inputs.models.coaching,
                     drafting: lab.models.drafting,
-                    availability: lab.models.availability,
+                    availability: inputs.models.availability,
                     template: TemplatePlanGenerator()
                 ),
-                buildFacts: BuildLatestSessionFacts(),
+                prepareNote: prepareNote,
                 buildPlanRequest: BuildLabPlanRequest(fitness: LoadFitnessSummary(cache: lab.snapshots), clock: clock, calendar: .current),
                 plans: plans,
                 runs: runs,
-                loadCachedSleep: loadCachedSleep,
-                loadCachedRecovery: loadCachedRecovery,
+                settings: LabSpendSettings(store: spend.settings),
                 errorText: LLMErrorText(calendar: .current, locale: .current, now: { clock.now() }),
                 today: { LocalDate(date: clock.now(), calendar: .current) },
                 claude: makeClaudeLab(spend: spend, clock: clock)
@@ -380,8 +485,11 @@ enum CompositionRoot {
                 requestedMonth: launch.calendarMonth
             ),
             startTab: launch.startTab,
+            notes: notes,
             makeSessionDetail: { id in
-                SessionDetailViewModel(sessionID: id, plans: plans, runs: runs, getSessionDetail: getSessionDetail)
+                SessionDetailViewModel(
+                    sessionID: id, plans: plans, runs: runs, notes: notes, getSessionDetail: getSessionDetail, clock: clock, calendar: .current
+                )
             }
         )
     }
@@ -478,9 +586,20 @@ enum CompositionRoot {
             sleep: InMemorySleepCache(FakeSleepHealthDataSource.seededCache(sleep, clock: clock, calendar: .current)),
             recovery: InMemoryRecoveryCache(FakeRecoveryHealthDataSource.seededCache(recovery, clock: clock, calendar: .current))
         )
+        let models = LanguageModels.fake(.ok, clock: clock)
+        let database = try? DatabaseProvider.inMemory()
+        let notes = NoteInputs(
+            notes: database.map { GRDBCoachNoteRepository(database: $0) as any CoachNoteRepository } ?? UnavailableCoachNoteRepository(),
+            analyses: InMemoryWorkoutAnalysisRepository(),
+            detail: { plans in FakeWorkoutDetailSource(scenario: .tempo, runs: { [] }, activePlan: { await plans.loadActive() }) },
+            profile: { FakeHeartRateProfile.profile },
+            models: .fake(.ok, spend: models.spend, clock: clock),
+            settings: models.spend.settings,
+            preferenceOverride: .ruleBased
+        )
         return makeMain(
             plans: plans, stores: stores, health: source, clock: clock, launch: MainLaunch(startTab: startTab),
-            lab: LabInputs(models: .fake(.ok, clock: clock), snapshots: InMemorySnapshotCache()), onNoPlan: {}
+            lab: LabInputs(models: models, snapshots: InMemorySnapshotCache()), notes: notes, onNoPlan: {}
         )
     }
 
@@ -516,6 +635,11 @@ enum CompositionRoot {
     /// - `-fakeLLM <ok|invalidPlan|unavailable|quota|slow|anthropicOk|noKey|badKey|credits|rateLimited>`: canned model
     ///   answers (no FoundationModels, no network), with an in-memory ledger, settings and secret store.
     /// - `-planDelay <seconds>`: the template waits this long first (0 or absent: no wait).
+    /// - `-fakeWorkoutDetail <tempo|easyDrift|noHr|paused|laps>`: canned workout detail for every run (no HealthKit).
+    /// - `-fakeCoachNote <ok|slow|fail|rules>`: canned coach notes (fail throws once; rules forces the rule-based note).
+    /// - `-fakeHeartRateHigh`: easy runs average 153 bpm instead of 139.
+    /// - `-coachModel <auto|template|onDevice|pcc.light|pcc.moderate|pcc.deep|anthropic.haiku55|...>`: the coach notes'
+    ///   model for this run, over the Lab's choice.
     struct DebugOptions {
         let usesFakes: Bool
         let personaID: String?
@@ -533,6 +657,10 @@ enum CompositionRoot {
         let planFallback: Bool
         let fakeLLM: FakeLLMScenario?
         let planDelay: Double?
+        let workoutDetailScenario: FakeWorkoutDetailScenario?
+        let fakeCoachNote: FakeCoachNoteScenario?
+        let fakeHeartRateHigh: Bool
+        let coachModel: CoachModelPreference?
 
         init(arguments: [String]) {
             func value(after flag: String) -> String? {
@@ -551,6 +679,10 @@ enum CompositionRoot {
             planFallback = arguments.contains("-planFallback")
             fakeLLM = value(after: "-fakeLLM").flatMap(FakeLLMScenario.init(rawValue:))
             planDelay = value(after: "-planDelay").flatMap(Double.init)
+            workoutDetailScenario = value(after: "-fakeWorkoutDetail").flatMap(FakeWorkoutDetailScenario.init(rawValue:))
+            fakeCoachNote = value(after: "-fakeCoachNote").flatMap(FakeCoachNoteScenario.init(rawValue:))
+            fakeHeartRateHigh = arguments.contains("-fakeHeartRateHigh")
+            coachModel = value(after: "-coachModel").flatMap(CoachModelPreference.init(id:))
             today = value(after: "-today").flatMap { LocalDate($0) }
             usesFakes = arguments.contains("-useInMemoryStores") || personaID != nil || simulate != nil || seedsPlan
             startsAuthorized = arguments.contains("-authorized") || seedsPlan

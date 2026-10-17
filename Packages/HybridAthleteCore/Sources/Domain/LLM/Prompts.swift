@@ -19,67 +19,27 @@ public struct Prompt: Sendable, Equatable, Codable {
     public var fullText: String { "\(instructions)\n\n\(text)" }
 }
 
-/// The coach note prompt. Facts only; a missing fact leaves its line out.
-public enum CoachNotePromptBuilder {
-    public static let maxWords = 80
-
-    public static let instructions = """
-        You are a running coach writing a short note about one training session.
-        Write at most \(maxWords) words and speak to the athlete as "you".
-        Use ONLY the facts given. Never invent numbers or details that are not in the facts.
-        Give no medical advice. When some data is missing, say so plainly.
-        End with exactly one concrete next step.
-        Write plain text: no emoji and no markdown.
-        """
-
-    public static func build(_ request: CoachNoteRequest) -> Prompt {
-        let facts = factLines(request)
-        let text = "Write a coach note about this session.\n\nFacts:\n" + facts.joined(separator: "\n")
-        return Prompt(instructions: instructions, facts: facts, text: text)
-    }
-
-    public static func factLines(_ request: CoachNoteRequest) -> [String] {
-        var lines = ["Session: \(request.sessionName) (\(SessionFormat.sessionTypeName(request.sessionType)))"]
-        if let week = request.weekIndex, let total = request.weeksTotal, let phase = request.phase, let days = request.daysToRace {
-            lines.append("Plan position: week \(week) of \(total), \(phase.rawValue) phase, \(days) \(days == 1 ? "day" : "days") to race.")
-        }
-        lines.append("Planned: \(SessionFormat.distanceText(km: request.plannedKm))")
-        if let done = request.doneKm {
-            var line = "Done: \(SessionFormat.distanceText(km: done))"
-            if let seconds = request.doneDurationSeconds {
-                line += " in \(SessionFormat.runDurationText(seconds: seconds))"
-            }
-            if let pace = request.paceSecPerKm {
-                line += " (\(SessionFormat.paceText(secondsPerKm: pace)))"
-            }
-            lines.append(line)
-            lines.append("Difference: \(SessionFormat.deltaKmText(done - request.plannedKm))")
-        } else {
-            switch request.status {
-            case .missed: lines.append("Status: marked missed")
-            case .notRecorded: lines.append("Status: not recorded")
-            case .completed, .today, .upcoming: break
-            }
-        }
-        if let sleep = request.sleep {
+/// The recovery lines of the facts: sleep, HRV and resting heart rate, each
+/// left out when missing.
+public enum RecoveryFactLines {
+    public static func lines(_ recovery: RecoveryFacts) -> [String] {
+        var lines: [String] = []
+        if let sleep = recovery.sleep {
             lines.append("Sleep last night: \(SleepFormat.durationText(minutes: sleep.asleepMinutes))" + sleepComparison(sleep))
         }
-        if let hrv = request.hrv {
+        if let hrv = recovery.hrv {
             let comparison = hrv.deltaPercent.map { delta -> String in
                 let metric = MetricComparison(delta: delta, band: RecoveryRules.hrvNeutralPercent, countUsed: hrv.nightsUsed)
                 return " (\(RecoveryFormat.hrvDeltaText(metric)) \(RecoveryFormat.hrvCaption(valuesUsed: hrv.nightsUsed)))"
             } ?? ""
             lines.append("HRV: \(RecoveryFormat.hrvValueText(hrv.valueMs)) ms" + comparison)
         }
-        if let resting = request.restingHr {
+        if let resting = recovery.restingHr {
             let comparison = resting.deltaBpm.map { delta -> String in
                 let metric = MetricComparison(delta: delta, band: RecoveryRules.restingHRNeutralBpm, countUsed: resting.daysUsed)
                 return " (\(RecoveryFormat.restingHRDeltaText(metric)) \(RecoveryFormat.restingHRCaption(valuesUsed: resting.daysUsed)))"
             } ?? ""
             lines.append("Resting heart rate: \(RecoveryFormat.restingHRValueText(resting.bpm)) bpm" + comparison)
-        }
-        if let summary = request.athleteSummary, !summary.isEmpty {
-            lines.append("Athlete summary: \(summary)")
         }
         return lines
     }

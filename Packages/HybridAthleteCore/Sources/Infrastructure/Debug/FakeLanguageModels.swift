@@ -20,7 +20,7 @@ public enum FakeLLMScenario: String, Sendable, CaseIterable {
     /// Like ok, but each answer takes 3 s.
     case slow
     /// Claude answers: plan drafts report 1,850 uncached input and 2,400 output
-    /// tokens, coach notes 600 and 150. Apple's models behave as in ok.
+    /// tokens, workout notes 600 and 150. Apple's models behave as in ok.
     case anthropicOk
     /// Claude calls fail as if the key were missing.
     case noKey
@@ -99,17 +99,16 @@ public struct FakeLanguageModel: CoachingModel, PlanDraftingModel {
         clock.now().addingTimeInterval(3 * 3_600)
     }
 
-    public func writeWorkoutNote(_ request: CoachNoteRequest, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
+    public func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
         let latency = try await answerOrFail(model, purpose: purpose)
-        let planned = SessionFormat.distanceText(km: request.plannedKm)
-        let observation = request.doneKm.map { "You ran \(SessionFormat.distanceText(km: $0)) of the planned \(planned)." }
-            ?? "No run was recorded for this session."
+        // No numbers, so the note passes the guard for any facts.
         let note = CoachNote(
-            headline: "\(request.sessionName): good work",
-            observation: observation + " Keep the easy days easy.",
-            nextStep: "Keep your next run conversational."
+            headline: "Good, steady work",
+            howItWent: "You finished the session as the facts show and kept the effort under control.",
+            versusPlan: "The blocks followed the plan closely.",
+            programStatus: "You are keeping up with the program.",
+            nextStep: "Keep your next easy run conversational."
         )
-        let prompt = CoachNotePromptBuilder.build(request)
         let tokens = model.provider == .anthropic ? Self.claudeCoachNoteUsage : appleUsage(model, input: 312, output: 64)
         let usage = await recorded(model, purpose: purpose, tokens: tokens, latency: latency)
         return CoachNoteResult(note: note, usage: usage, promptText: prompt.fullText, model: model)
@@ -185,6 +184,56 @@ public struct FakeKeyTester: AnthropicKeyTesting {
         }
         let record = await meter?.record(model: model, purpose: .keyTest, usage: TokenUsage(uncachedInput: 12, output: 2), latencyMs: 400, error: nil)
         return KeyTestResult(latencyMs: 400, costMicros: record?.costMicros)
+    }
+}
+#endif
+
+#if DEBUG
+/// `-fakeCoachNote <scenario>`: canned post-workout notes. DEBUG builds only.
+public enum FakeCoachNoteScenario: String, Sendable, CaseIterable {
+    /// The canned note (it matches the tempo detail's facts, so it passes the guard there).
+    case ok
+    /// Like ok, after 3 s.
+    case slow
+    /// The first attempt throws an unexpected error, later ones answer like ok.
+    case fail
+    /// The rule-based path (the composition root sets the preference).
+    case rules
+}
+
+/// The canned note writer behind `-fakeCoachNote`. Every answered attempt is
+/// recorded through the meter like a real adapter.
+public actor FakeCoachNoteModel: CoachingModel {
+    public struct UnexpectedFailure: Error {}
+
+    public static let note = CoachNote(
+        headline: "Steady and controlled",
+        howItWent: "You ran 5.0 km at 5:43 /km and every block landed in its heart rate zone.",
+        versusPlan: "Warm-up 6:30 /km, tempo 5:09 /km at HR 163 bpm, cool-down 6:40 /km, as planned.",
+        programStatus: "Plan adherence is 86% (6 of 7 sessions).",
+        nextStep: "Keep the next easy run just as relaxed."
+    )
+
+    private let scenario: FakeCoachNoteScenario
+    private let meter: LLMCallMeter?
+    private var hasFailed = false
+
+    public init(scenario: FakeCoachNoteScenario, meter: LLMCallMeter? = nil) {
+        self.scenario = scenario
+        self.meter = meter
+    }
+
+    public func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
+        if scenario == .fail, !hasFailed {
+            hasFailed = true
+            throw UnexpectedFailure()
+        }
+        if scenario == .slow { try await Task.sleep(for: .seconds(3)) }
+        let tokens = TokenUsage(uncachedInput: AnalysisRules.estimatedTokens(characters: prompt.fullText.count), output: 160)
+        let record = await meter?.record(model: model, purpose: purpose, usage: tokens, latencyMs: 900, error: nil)
+        return CoachNoteResult(
+            note: Self.note, usage: LLMUsage(tokens, latencyMs: 900, costMicros: record?.costMicros), promptText: prompt.fullText, model: model
+        )
     }
 }
 #endif

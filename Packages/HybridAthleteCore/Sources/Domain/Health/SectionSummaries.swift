@@ -43,19 +43,24 @@ public struct WorkoutsSummary: Sendable, Equatable, Codable {
     public let runHeartRateAverage: Double?
     public let personalRecords: [PersonalRecord]
     public let volume: RunningVolume
+    /// The highest max heart rate of the last 365 days' runs, when at least 3
+    /// runs have heart rate (`ObservedMaxHeartRate`).
+    public let observedMaxHr: Double?
 
     public init(
         totalCount: Int,
         runCount: Int,
         runHeartRateAverage: Double?,
         personalRecords: [PersonalRecord],
-        volume: RunningVolume
+        volume: RunningVolume,
+        observedMaxHr: Double? = nil
     ) {
         self.totalCount = totalCount
         self.runCount = runCount
         self.runHeartRateAverage = runHeartRateAverage
         self.personalRecords = personalRecords
         self.volume = volume
+        self.observedMaxHr = observedMaxHr
     }
 
     /// Derives the summary from the full workout list and the sections computed from it.
@@ -71,7 +76,8 @@ public struct WorkoutsSummary: Sendable, Equatable, Codable {
             runCount: workouts.all.filter { $0.isRun && $0.start >= windowStart && $0.start <= now }.count,
             runHeartRateAverage: runHeartRate.averageBpm,
             personalRecords: personalRecords.items,
-            volume: RunningVolume.measure(workouts.all, now: now)
+            volume: RunningVolume.measure(workouts.all, now: now),
+            observedMaxHr: ObservedMaxHeartRate.value(workouts: workouts.all, now: now)
         )
     }
 }

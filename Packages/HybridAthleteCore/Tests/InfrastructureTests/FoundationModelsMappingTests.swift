@@ -52,7 +52,7 @@ struct FoundationModelsMappingTests {
         let checker = FoundationModelAvailabilityChecker(configuration: .current)
         #expect(await checker.status(for: .privateCloud(reasoning: .moderate)).availability == .notEnabledForBuild)
         await #expect(throws: LLMError.unavailable(.notEnabledForBuild)) {
-            try await FoundationModelsCoachingModel().writeWorkoutNote(.sampleShortRun, model: .privateCloud(reasoning: .light), purpose: .labCoachNote)
+            try await FoundationModelsCoachingModel().writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: .privateCloud(reasoning: .light), purpose: .labCoachNote)
         }
     }
 
@@ -96,7 +96,7 @@ struct FakeLanguageModelTests {
     @Test func failingScenarios() async {
         let clock = TestClock()
         await #expect(throws: LLMError.unavailable(.notReady)) {
-            try await FakeLanguageModel(scenario: .unavailable, clock: clock).writeWorkoutNote(.sampleShortRun, model: .onDevice, purpose: .labCoachNote)
+            try await FakeLanguageModel(scenario: .unavailable, clock: clock).writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: .onDevice, purpose: .labCoachNote)
         }
         await #expect(throws: LLMError.quotaLimitReached(resetDate: clock.now().addingTimeInterval(3 * 3_600))) {
             try await FakeLanguageModel(scenario: .quota, clock: clock).draftPlan(SeedPlan.request, model: .onDevice, purpose: .labPlanDraft)

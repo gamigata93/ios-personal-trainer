@@ -38,6 +38,8 @@ final class HomeViewModel {
     private let deleteActivePlan: DeleteActivePlan
     private let clock: any Clock
     private let onNoPlan: @MainActor () -> Void
+    /// The shared coach notes, for the "Latest coach note" card.
+    private let notes: CoachNoteStore?
 
     init(
         plans: ActivePlanStore,
@@ -48,8 +50,10 @@ final class HomeViewModel {
         getHomeOverview: GetHomeOverview,
         deleteActivePlan: DeleteActivePlan,
         clock: any Clock,
+        notes: CoachNoteStore? = nil,
         onNoPlan: @escaping @MainActor () -> Void
     ) {
+        self.notes = notes
         self.plans = plans
         self.runs = runs
         self.loadCachedSleep = loadCachedSleep
@@ -69,6 +73,9 @@ final class HomeViewModel {
 
     var selectedDate: LocalDate? { overview?.selectedDate }
 
+    /// The newest completed session's note; nil when no session has one.
+    var latestNote: LatestCoachNoteCard? { notes?.latestCard }
+
     /// Shows the cached runs and recovery at once, then reads Health. A missing
     /// plan (for example an unreadable file) goes back to the starting point.
     func load() async {
@@ -81,6 +88,7 @@ final class HomeViewModel {
             return
         }
         await runs.loadCached()
+        await notes?.load()
         recovery.sleep = await loadCachedSleep.execute()
         (recovery.hrv, recovery.restingHr) = await loadCachedRecovery.execute()
         async let runsDone: Void = runs.refreshIfStale()
@@ -176,6 +184,13 @@ final class HomeViewModel {
     var recoveryJSON: String? {
         guard lastHRVRead != nil || lastRestingHRRead != nil else { return nil }
         return RecoveryDebugJSON.string(hrv: lastHRVRead, restingHr: lastRestingHRRead, sdkHasRmssdType: sdkHasRmssdType)
+    }
+
+    /// DEBUG "Copy coach note facts": the exact prompt the selected session's
+    /// note would send; nil when the session has no completed run.
+    func coachNoteFacts() async -> String? {
+        guard let date = selectedDate, let id = plans.plan?.session(on: date)?.id else { return nil }
+        return await notes?.factsText(for: id)
     }
 
     /// DEBUG only: delete the plan and go back to the starting point.

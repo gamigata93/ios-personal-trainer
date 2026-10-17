@@ -91,27 +91,9 @@ private struct SessionTypeDots: Shape {
     }
 }
 
-extension SessionStatus {
-    /// Icon color by status. Ratings come later, so completed is neutral, not green.
-    var iconColor: Color {
-        switch self {
-        case .completed: Theme.Palette.text
-        case .missed: Theme.Palette.missedIcon
-        case .notRecorded: Theme.Palette.mutedText
-        case .today: Theme.Palette.accent
-        case .upcoming: Theme.Palette.upcomingIcon
-        }
+extension SessionTypeIcon {
+    /// The icon drawn the way its status looks (color and strike).
+    init(type: SessionType, size: CGFloat, presentation: SessionStatusPresentation) {
+        self.init(type: type, size: size, color: presentation.iconColor, isStruck: presentation.iconDecoration == .strike)
     }
-
-    /// Status chip text color; the fill is the same color at 13%.
-    var chipColor: Color {
-        switch self {
-        case .completed, .today: Theme.Palette.text
-        case .notRecorded, .upcoming: Theme.Palette.softText
-        case .missed: Theme.Palette.missedAction
-        }
-    }
-
-    /// Missed sessions draw their icon struck through.
-    var isStruck: Bool { self == .missed }
 }

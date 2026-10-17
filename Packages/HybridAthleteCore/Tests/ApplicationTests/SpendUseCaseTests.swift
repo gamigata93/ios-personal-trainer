@@ -104,9 +104,10 @@ private actor MeteredDrafting: PlanDraftingModel {
 
 private actor CountingCoaching: CoachingModel {
     private(set) var calls = 0
-    func writeWorkoutNote(_ request: CoachNoteRequest, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
+    func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
         calls += 1
-        return CoachNoteResult(note: CoachNote(headline: "Good", observation: "Fine.", nextStep: "Rest."), usage: LLMUsage(latencyMs: 1), promptText: "p", model: model)
+        let note = CoachNote(headline: "Good", howItWent: "Fine.", versusPlan: "Fine.", programStatus: "Fine.", nextStep: "Rest.")
+        return CoachNoteResult(note: note, usage: LLMUsage(latencyMs: 1), promptText: "p", model: model)
     }
 }
 
@@ -237,7 +238,7 @@ struct SpendGateTests {
 
         let coaching = CountingCoaching()
         await #expect(throws: LLMError.self) {
-            try await SpendGatedCoachingModel(inner: coaching, gate: harness.gate).writeWorkoutNote(.sampleShortRun, model: sonnet, purpose: .labCoachNote)
+            try await SpendGatedCoachingModel(inner: coaching, gate: harness.gate).writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: sonnet, purpose: .labCoachNote)
         }
         #expect(await coaching.calls == 0)
     }
@@ -296,7 +297,7 @@ struct ClaudeLabRunnerTests {
             availability: ScriptedAvailability(),
             template: NoTemplate()
         )
-        let result = await lab.run(.coachNote(.sampleShortRun), model: .anthropic(.sonnet55))
+        let result = await lab.run(.workoutNote(WorkoutNoteFixture.requestA), model: .anthropic(.sonnet55))
         #expect(result.error == .spendLimit("Allow Claude runs first."))
         #expect(await lab.availableModels(.anthropic) == ModelChoice.claude)
     }

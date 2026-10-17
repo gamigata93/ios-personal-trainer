@@ -15,6 +15,8 @@ final class MainScreens {
     let runs: CompletedRunsStore
     let home: HomeViewModel
     let calendar: CalendarViewModel
+    /// The shared coach notes; nil in tests that do not need them.
+    let notes: CoachNoteStore?
     /// DEBUG `-startTab`; Home otherwise.
     let startTab: Tab
     private let makeSessionDetailViewModel: @MainActor (String) -> SessionDetailViewModel
@@ -25,8 +27,10 @@ final class MainScreens {
         home: HomeViewModel,
         calendar: CalendarViewModel,
         startTab: Tab = .home,
+        notes: CoachNoteStore? = nil,
         makeSessionDetail: @escaping @MainActor (String) -> SessionDetailViewModel
     ) {
+        self.notes = notes
         self.plans = plans
         self.runs = runs
         self.home = home

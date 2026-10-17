@@ -58,67 +58,6 @@ struct PromptBuilderTests {
         #expect(!text.contains("Note 9"))
         #expect(!PlanPromptBuilder.build(WorkedRequest.request).text.contains("Fix these problems"))
     }
-
-    private let longRun = CoachNoteRequest(
-        sessionName: "Long run", sessionType: .long, status: .completed, plannedKm: 10, doneKm: 7, doneDurationSeconds: 2_520,
-        paceSecPerKm: 360, weekIndex: 2, weeksTotal: 8, phase: .base, daysToRace: 44,
-        sleep: SleepFact(asleepMinutes: 450, deltaPercent: 7), hrv: HRVFact(valueMs: 58, deltaPercent: -6),
-        restingHr: RestingHRFact(bpm: 49, deltaBpm: 0.5)
-    )
-
-    @Test func coachNoteFactLines() {
-        #expect(CoachNotePromptBuilder.factLines(longRun) == [
-            "Session: Long run (Long run)",
-            "Plan position: week 2 of 8, base phase, 44 days to race.",
-            "Planned: 10.0 km",
-            "Done: 7.0 km in 42:00 (6:00 /km)",
-            "Difference: \u{2212}3.0 km",
-            "Sleep last night: 7h 30m (+7% vs your last 7 nights)",
-            "HRV: 58 ms (\u{2212}6% vs last 7 nights)",
-            "Resting heart rate: 49 bpm (About the same vs last 7 days)",
-        ])
-        #expect(CoachNoteRequest.sampleShortRun == longRun)
-    }
-
-    @Test func notRecordedAndMissingRecovery() {
-        let request = CoachNoteRequest(sessionName: "Easy run", sessionType: .easy, status: .notRecorded, plannedKm: 5)
-        #expect(CoachNotePromptBuilder.factLines(request) == ["Session: Easy run (Easy)", "Planned: 5.0 km", "Status: not recorded"])
-        let missed = CoachNoteRequest(sessionName: "Easy run", sessionType: .easy, status: .missed, plannedKm: 5)
-        #expect(CoachNotePromptBuilder.factLines(missed).last == "Status: marked missed")
-    }
-
-    @Test func instructionsSayTheRules() {
-        let text = CoachNotePromptBuilder.instructions
-        for part in ["80 words", "\"you\"", "ONLY the facts", "Never invent numbers", "no medical advice", "missing", "one concrete next step", "no emoji and no markdown"] {
-            #expect(text.localizedCaseInsensitiveContains(part), "\(part)")
-        }
-    }
-}
-
-@Suite("Coach note validator")
-struct CoachNoteValidatorTests {
-    private let facts = CoachNotePromptBuilder.factLines(.sampleShortRun).joined(separator: "\n")
-
-    private func note(_ observation: String) -> CoachNote {
-        CoachNote(headline: "Long run", observation: observation, nextStep: "Rest tomorrow.")
-    }
-
-    @Test func numbersFromTheFactsAreSupported() {
-        #expect(CoachNoteValidator.flags(note("You ran 7.0 of 10.0 km at a 6:00 pace in week 2."), facts: facts).isEmpty)
-    }
-
-    @Test func inventedNumbersAreFlagged() {
-        #expect(CoachNoteValidator.flags(note("You ran 9.5 km."), facts: facts) == [.unsupportedNumbers(["9.5"])])
-        #expect(CoachNoteFlag.unsupportedNumbers(["9.5"]).message == "Numbers not in the facts: 9.5")
-    }
-
-    @Test func lengthLimits() {
-        let exactly = String(repeating: "a", count: 240)
-        #expect(CoachNoteValidator.flags(note(exactly), facts: facts).isEmpty)
-        let long = String(repeating: "a", count: 251)
-        #expect(CoachNoteValidator.flags(note(long), facts: facts) == [.tooLong(field: "Observation", limit: 240)])
-        #expect(CoachNoteFlag.tooLong(field: "Observation", limit: 240).message == "Observation longer than 240 characters")
-    }
 }
 
 @Suite("Plan draft")

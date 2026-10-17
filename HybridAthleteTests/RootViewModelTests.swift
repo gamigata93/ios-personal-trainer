@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Domain
 import Application
+import Infrastructure
 @testable import HybridAthlete
 
 @MainActor
@@ -70,13 +71,21 @@ struct RootViewModelTests {
                     clock: FixedClock(),
                     onNoPlan: onNoPlan
                 )
+                let notes = makeCoachNotes(
+                    plans: planStore, runs: runStore, clock: FixedClock(), calendar: calendar,
+                    detail: FakeWorkoutDetailSource(scenario: .tempo, runs: { [] }, activePlan: { nil }),
+                    today: LocalDate(date: FixedClock().now(), calendar: calendar)
+                )
                 return MainScreens(
                     plans: planStore,
                     runs: runStore,
                     home: home,
                     calendar: CalendarViewModel(plans: planStore, runs: runStore, getCalendarMonth: GetCalendarMonth(clock: FixedClock(), calendar: calendar)),
                     makeSessionDetail: { id in
-                        SessionDetailViewModel(sessionID: id, plans: planStore, runs: runStore, getSessionDetail: GetSessionDetail(clock: FixedClock(), calendar: calendar))
+                        SessionDetailViewModel(
+                            sessionID: id, plans: planStore, runs: runStore, notes: notes,
+                            getSessionDetail: GetSessionDetail(clock: FixedClock(), calendar: calendar), clock: FixedClock(), calendar: calendar
+                        )
                     }
                 )
             }
@@ -93,8 +102,27 @@ struct RootViewModelTests {
         let root = makeRoot(status: .shouldRequest, hasPlan: false)
         await root.start()
         await root.connectHealth?.allow()
+        await waitForRoute(root, .startingPoint)
         #expect(root.route == .startingPoint)
         #expect(root.startingPoint != nil)
+    }
+
+    /// A new read type asks an existing user once more; with a plan they go back to Home.
+    @Test func connectingWithAPlanOpensHome() async {
+        let root = makeRoot(status: .shouldRequest, hasPlan: true)
+        await root.start()
+        #expect(root.route == .connectHealth)
+        await root.connectHealth?.allow()
+        await waitForRoute(root, .home)
+        #expect(root.route == .home)
+        #expect(root.startingPoint == nil)
+    }
+
+    /// The route changes in a task started by Connect Health's callback.
+    private func waitForRoute(_ root: RootViewModel, _ route: AppRoute) async {
+        for _ in 0..<200 where root.route != route {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     @Test func requestedWithoutPlanOpensTheStartingPoint() async {

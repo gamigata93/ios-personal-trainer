@@ -80,7 +80,7 @@ struct ClaudeWithoutKeyTests {
         let meter = LLMCallMeter(prices: BundledPriceTableProvider(), recorder: ledger, clock: TestClock())
         let coaching = FoundationModelsCoachingModel(secrets: InMemorySecretStore(), meter: meter)
         await #expect(throws: LLMError.unavailable(.needsAPIKey)) {
-            try await coaching.writeWorkoutNote(.sampleShortRun, model: .anthropic(.haiku55), purpose: .labCoachNote)
+            try await coaching.writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: .anthropic(.haiku55), purpose: .labCoachNote)
         }
         await #expect(throws: LLMError.unavailable(.needsAPIKey)) {
             try await ClaudeKeyTester(secrets: InMemorySecretStore(), meter: meter).testKey()
@@ -190,7 +190,7 @@ struct GRDBLLMUsageLedgerTests {
         try PlanDatabaseMigrations.migrator.migrate(queue)
         try PlanDatabaseMigrations.migrator.migrate(queue)
         let applied = try await queue.read { db in try PlanDatabaseMigrations.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1_plan", "v2_llm_usage"])
+        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis"])
         let plans = try await queue.read { db in try String.fetchAll(db, sql: "SELECT id FROM plan") }
         #expect(plans == ["p1"])
         let usageRows = try await queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM llm_usage") }
@@ -226,9 +226,9 @@ struct FakeClaudeScenarioTests {
         let (fake, ledger) = harness(.anthropicOk)
         let draft = try await fake.draftPlan(SeedPlan.request, model: .anthropic(.sonnet55), purpose: .labPlanDraft)
         #expect(draft.usage.costMicros == 27_700)
-        let note = try await fake.writeWorkoutNote(.sampleShortRun, model: .anthropic(.haiku55), purpose: .labCoachNote)
+        let note = try await fake.writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: .anthropic(.haiku55), purpose: .labCoachNote)
         #expect(note.usage.costMicros == 135)
-        _ = try await fake.writeWorkoutNote(.sampleShortRun, model: .onDevice, purpose: .labCoachNote)
+        _ = try await fake.writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: .onDevice, purpose: .labCoachNote)
         let records = try await ledger.records(since: nil)
         #expect(records.map(\.costMicros) == [27_700, 135, nil])
     }

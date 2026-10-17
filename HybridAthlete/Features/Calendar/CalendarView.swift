@@ -4,7 +4,7 @@ import Application
 
 /// The Calendar tab: the month grid, the selected day's card with its edit
 /// actions (move, swap, mark missed), the edit banner and notice, and a legend of
-/// the session-type icons. Every value comes from the view model's
+/// the session-type icons and statuses. Every value comes from the view model's
 /// `CalendarMonthOverview`; this file only lays it out.
 struct CalendarView: View {
     let viewModel: CalendarViewModel
@@ -144,6 +144,8 @@ private struct CalendarCellView: View {
     let onTap: () -> Void
 
     private var hasSession: Bool { cell.sessionType != nil || cell.isRaceDay }
+    /// Nil on rest days, race day and days outside the plan.
+    private var look: SessionStatusPresentation? { cell.status.map { SessionStatusPresentation.presentation($0) } }
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Theme.Radius.calendarCell, style: .continuous) }
 
     var body: some View {
@@ -160,6 +162,11 @@ private struct CalendarCellView: View {
             .aspectRatio(1, contentMode: .fit)
             .background(fill, in: shape)
             .overlay { border }
+            .overlay(alignment: .topTrailing) {
+                if look?.showsCheckBadge == true && !cell.isRaceDay {
+                    CheckBadge(size: Theme.Size.checkBadge).padding(Theme.Size.checkBadgeInset)
+                }
+            }
             .overlay {
                 if cell.isSelected {
                     shape.strokeBorder(Theme.Palette.accent, lineWidth: Theme.Size.selectedRing)
@@ -199,7 +206,7 @@ private struct CalendarCellView: View {
     private var border: some View {
         if cell.isRaceDay {
             shape.strokeBorder(Theme.Palette.accent, lineWidth: Theme.Size.raceBorder)
-        } else if cell.status == .notRecorded {
+        } else if look?.cellBorder == .dashed {
             shape.strokeBorder(
                 Theme.Palette.notRecordedBorder,
                 style: StrokeStyle(lineWidth: Theme.Size.notRecordedBorder, dash: Theme.Size.notRecordedDash)
@@ -216,8 +223,8 @@ private struct CalendarCellView: View {
                 .font(Theme.Typography.calendarGlyph)
                 .foregroundStyle(Theme.Palette.accent)
                 .accessibilityHidden(true)
-        } else if let type = cell.sessionType, let status = cell.status {
-            SessionTypeIcon(type: type, size: Theme.Size.calendarIcon, color: status.iconColor, isStruck: status.isStruck)
+        } else if let type = cell.sessionType, let look {
+            SessionTypeIcon(type: type, size: Theme.Size.calendarIcon, presentation: look)
         } else {
             Color.clear
         }
@@ -418,27 +425,87 @@ private struct ActionIcon: Shape {
     }
 }
 
-/// The five session-type icons with their names. A design addition: the
-/// mockup has no legend, but the icons alone are hard to learn.
-private struct CalendarLegend: View {
-    private static let items: [(SessionType, String)] = [
-        (.easy, "circle"), (.tempo, "arrow"), (.threshold, "step"), (.intervals, "zigzag"), (.long, "line with dots"),
-    ]
+/// Two rows: the five session-type icons with their names, then the five
+/// statuses. A design addition: the mockup has no legend, but the icons alone are
+/// hard to learn. Status samples use a plain circle so they imply no session type.
+struct CalendarLegend: View {
+    private static let types: [SessionType] = [.easy, .tempo, .threshold, .intervals, .long]
+    private static let statuses: [SessionStatus] = [.completed, .today, .upcoming, .notRecorded, .missed]
+
+    /// One VoiceOver element for the whole legend.
+    static let accessibilityText = "Legend. Types: easy circle, tempo arrow, threshold plateau, intervals zigzag, long run bar. "
+        + "Status: completed is blue with a check, today is lime, upcoming is gray, not recorded has a dashed border, missed is struck through."
 
     var body: some View {
-        FlowLayout(spacing: Theme.Spacing.legendItemsGap, lineSpacing: Theme.Spacing.legendLines) {
-            ForEach(Self.items, id: \.0) { type, _ in
-                HStack(spacing: Theme.Spacing.legendIconToName) {
-                    SessionTypeIcon(type: type, size: Theme.Size.calendarIcon, color: Theme.Palette.text)
-                    Text(SessionFormat.sessionTypeName(type))
-                        .font(Theme.Typography.legendLabel)
-                        .foregroundStyle(Theme.Palette.mutedText)
+        VStack(alignment: .leading, spacing: Theme.Spacing.legendLines) {
+            FlowLayout(spacing: Theme.Spacing.legendItemsGap, lineSpacing: Theme.Spacing.legendLines) {
+                ForEach(Self.types, id: \.self) { type in
+                    HStack(spacing: Theme.Spacing.legendIconToName) {
+                        SessionTypeIcon(type: type, size: Theme.Size.calendarIcon, color: Theme.Palette.text)
+                        label(SessionFormat.sessionTypeName(type))
+                    }
+                }
+            }
+            FlowLayout(spacing: Theme.Spacing.legendItemsGap, lineSpacing: Theme.Spacing.legendLines) {
+                Text("Status")
+                    .font(Theme.Typography.legendCaption)
+                    .foregroundStyle(Theme.Palette.mutedText)
+                ForEach(Self.statuses, id: \.self) { status in
+                    HStack(spacing: Theme.Spacing.legendIconToName) {
+                        StatusSample(look: .presentation(status))
+                        label(SessionStatusPresentation.presentation(status).chipText)
+                    }
                 }
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Legend: " + Self.items.map { "\(SessionFormat.sessionTypeName($0.0)) \($0.1)" }.joined(separator: ", "))
+        .accessibilityLabel(Self.accessibilityText)
         .accessibilityIdentifier("calendarLegend")
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.Typography.legendLabel)
+            .foregroundStyle(Theme.Palette.mutedText)
+    }
+}
+
+/// A 14 pt status sample: a circle in the status icon color (struck when missed,
+/// badged when completed), or a small dashed square for not recorded.
+private struct StatusSample: View {
+    let look: SessionStatusPresentation
+
+    var body: some View {
+        let size = Theme.Size.calendarIcon
+        let stroke = Theme.Size.iconStroke * size / Theme.Size.iconGrid
+        Group {
+            if look.cellBorder == .dashed {
+                RoundedRectangle(cornerRadius: Theme.Radius.legendSample, style: .continuous)
+                    .strokeBorder(Theme.Palette.notRecordedBorder, style: StrokeStyle(lineWidth: Theme.Size.notRecordedBorder, dash: Theme.Size.notRecordedDash))
+            } else {
+                ZStack {
+                    Circle()
+                        .stroke(look.iconColor, lineWidth: stroke)
+                        .padding(size * 3 / Theme.Size.iconGrid)
+                    if look.iconDecoration == .strike {
+                        Path { path in
+                            path.move(to: CGPoint(x: size * 2 / Theme.Size.iconGrid, y: size * 14 / Theme.Size.iconGrid))
+                            path.addLine(to: CGPoint(x: size * 14 / Theme.Size.iconGrid, y: size * 2 / Theme.Size.iconGrid))
+                        }
+                        .stroke(look.iconColor, style: StrokeStyle(lineWidth: stroke, lineCap: .round))
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if look.showsCheckBadge {
+                        CheckBadge(size: Theme.Size.checkBadgeSmall)
+                            .offset(x: Theme.Size.checkBadgeOffset.width, y: Theme.Size.checkBadgeOffset.height)
+                    }
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        // Room for the badge, which sits outside the sample's corner.
+        .padding(.trailing, look.showsCheckBadge ? Theme.Size.checkBadgeOffset.width : 0)
     }
 }
 

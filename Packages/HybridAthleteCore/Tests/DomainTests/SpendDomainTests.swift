@@ -279,7 +279,8 @@ struct SpendGuardTests {
     }
 
     @Test func ceilings() {
-        #expect(LLMCallPurpose.labCoachNote.task.maxOutputTokens == 600)
+        #expect(LLMCallPurpose.labCoachNote.task.maxOutputTokens == 1_000)
+        #expect(LLMCallPurpose.workoutNote.task.maxOutputTokens == 1_000)
         #expect(LLMCallPurpose.planGeneration.task.maxOutputTokens == 4_000)
         #expect(LLMCallPurpose.keyTest.task.maxOutputTokens == 8)
         #expect(SpendCaps.defaults == SpendCaps(perRunMicros: 250_000, monthlyMicros: 5_000_000))

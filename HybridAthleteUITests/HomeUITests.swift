@@ -60,6 +60,25 @@ final class HomeUITests: XCTestCase {
     }
 
     @MainActor
+    func testWeekStripSaysCompleted() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-seedPlan", "-fakeRuns", "-today", "2026-10-28", "-startTab", "home", "-planDelay", "0"]
+        app.launch()
+
+        let monday = app.buttons["home.day.2026-10-26"]
+        XCTAssertTrue(monday.waitForExistence(timeout: 10))
+        let completed = NSPredicate(format: "label CONTAINS 'completed'")
+        XCTAssertEqual(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: completed, object: monday)], timeout: 10), .completed)
+        XCTAssertFalse(app.buttons["home.day.2026-10-28"].label.contains("completed"))
+
+        app.buttons["weekPrev"].tap()
+        XCTAssertTrue(app.buttons["home.day.2026-10-19"].label.contains("completed"))
+        XCTAssertTrue(app.buttons["home.day.2026-10-23"].label.contains("completed"))
+        XCTAssertTrue(app.buttons["home.day.2026-10-21"].label.contains("not recorded"))
+        keepScreenshot(of: app, named: "Home - week strip completed")
+    }
+
+    @MainActor
     func testBeforeThePlanStarts() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-seedPlan", "-today", "2026-10-10"]

@@ -13,13 +13,22 @@ final class ModelLabViewModel: Identifiable {
     enum Experiment: String, CaseIterable, Identifiable {
         case coachNote, planDraft
         var id: String { rawValue }
-        var title: String { self == .coachNote ? "Coach note" : "Plan draft" }
+        var title: String { self == .coachNote ? "Workout note" : "Plan draft" }
     }
 
-    enum CoachInput: String, CaseIterable, Identifiable {
-        case latest, sample
-        var id: String { rawValue }
-        var title: String { self == .latest ? "My latest completed session" : "Sample: short run" }
+    /// Which run the Workout note uses: the newest completed session, one picked
+    /// from the list, or the fixed sample (a 5.0 km tempo).
+    enum CoachInput: Hashable {
+        case latest
+        case session(String)
+        case sample
+    }
+
+    /// One completed session in the picker.
+    struct SessionChoice: Identifiable, Equatable {
+        let id: String
+        /// "Mon 26 Oct · Tempo run".
+        let title: String
     }
 
     /// One finished run, newest first.
@@ -49,13 +58,15 @@ final class ModelLabViewModel: Identifiable {
     /// Why "My latest completed session" cannot run, when it cannot.
     private(set) var latestUnavailableText: String?
 
+    /// Which model the real coach notes use.
+    private(set) var coachPreference: CoachModelPreference = .automatic
+
     private let runner: RunModelExperiment
-    private let buildFacts: BuildLatestSessionFacts
+    private let prepareNote: PrepareWorkoutNote
     private let buildPlanRequest: BuildLabPlanRequest
     private let plans: ActivePlanStore
     private let runs: CompletedRunsStore
-    private let loadCachedSleep: LoadCachedSleep
-    private let loadCachedRecovery: LoadCachedRecovery
+    private let settings: LabSpendSettings
     private let errorText: LLMErrorText
     private let today: () -> LocalDate
     /// Costs, key, consent and caps.
@@ -66,23 +77,21 @@ final class ModelLabViewModel: Identifiable {
 
     init(
         runner: RunModelExperiment,
-        buildFacts: BuildLatestSessionFacts,
+        prepareNote: PrepareWorkoutNote,
         buildPlanRequest: BuildLabPlanRequest,
         plans: ActivePlanStore,
         runs: CompletedRunsStore,
-        loadCachedSleep: LoadCachedSleep,
-        loadCachedRecovery: LoadCachedRecovery,
+        settings: LabSpendSettings,
         errorText: LLMErrorText,
         today: @escaping () -> LocalDate,
         claude: ClaudeLabViewModel
     ) {
         self.runner = runner
-        self.buildFacts = buildFacts
+        self.prepareNote = prepareNote
         self.buildPlanRequest = buildPlanRequest
         self.plans = plans
         self.runs = runs
-        self.loadCachedSleep = loadCachedSleep
-        self.loadCachedRecovery = loadCachedRecovery
+        self.settings = settings
         self.errorText = errorText
         self.today = today
         self.claude = claude
@@ -101,6 +110,7 @@ final class ModelLabViewModel: Identifiable {
         await plans.loadIfNeeded()
         await runs.loadCached()
         await claude.load()
+        coachPreference = await settings.load().coachModelPreference
         for model in ModelChoice.all {
             await loadStatus(model)
         }
@@ -177,29 +187,67 @@ final class ModelLabViewModel: Identifiable {
         selectedModel.provider == .apple ? "Run all Apple models" : "Run all Claude models"
     }
 
-    /// Nil (with `latestUnavailableText` set) when the latest session has no run yet.
+    // MARK: Workout note input
+
+    /// Completed sessions, newest first.
+    var sessionChoices: [SessionChoice] {
+        guard let plan = plans.plan else { return [] }
+        let progress = PlanProgress(plan: plan, runs: runs.result.runs, today: today())
+        return plan.sessions
+            .filter { $0.date <= today() && progress.matches[$0.id] != nil }
+            .sorted { $0.date > $1.date }
+            .map { SessionChoice(id: $0.id, title: "\(HomeFormat.shortDate($0.date)) · \($0.name)") }
+    }
+
+    /// The session the Workout note runs on; nil for the sample or when none is completed.
+    var selectedSessionID: String? {
+        switch coachInput {
+        case .sample: nil
+        case .session(let id): id
+        case .latest: sessionChoices.first?.id
+        }
+    }
+
+    /// Nil (with `latestUnavailableText` set) when no completed session can be used.
     private func makeExperiment() async -> ModelExperiment? {
         switch experiment {
         case .planDraft:
             return .planDraft(await buildPlanRequest.execute(plan: plans.plan))
         case .coachNote:
-            guard coachInput == .latest else { return .coachNote(.sampleShortRun) }
+            if coachInput == .sample { return .workoutNote(.sampleTempo) }
             guard let plan = plans.plan else {
                 latestUnavailableText = "There is no plan yet. Use the sample."
                 return nil
             }
-            let sleep = await loadCachedSleep.execute().value ?? []
-            let recovery = await loadCachedRecovery.execute()
-            guard let facts = buildFacts.execute(
-                plan: plan, runs: runs.result.runs, today: today(),
-                sleepNights: sleep, hrvNights: recovery.hrv.value ?? [], restingDays: recovery.restingHr.value ?? []
-            ) else {
+            guard let id = selectedSessionID,
+                  case .ready(let prepared) = try? await prepareNote.execute(plan: plan, runs: runs.result.runs, sessionId: id)
+            else {
                 latestUnavailableText = "No completed session with a run yet. Use the sample."
                 return nil
             }
             latestUnavailableText = nil
-            return .coachNote(facts)
+            return .workoutNote(prepared.request)
         }
     }
+
+    // MARK: Coach notes model
+
+    /// "Use for coach notes": the real notes use the selected model from now on.
+    func useForCoachNotes() async {
+        await setCoachPreference(.model(selectedModel))
+    }
+
+    /// The "Automatic" chip: Private Cloud Compute, then on-device, then the rules.
+    func useAutomaticForCoachNotes() async {
+        await setCoachPreference(.automatic)
+    }
+
+    private func setCoachPreference(_ preference: CoachModelPreference) async {
+        await settings.setCoachModelPreference(preference)
+        coachPreference = preference
+    }
+
+    /// "Coach notes use: Automatic".
+    var coachPreferenceText: String { "Coach notes use: \(coachPreference.displayName)" }
 }
 #endif

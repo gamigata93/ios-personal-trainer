@@ -55,14 +55,36 @@ final class CalendarUITests: XCTestCase {
     }
 
     @MainActor
+    func testCompletedCellsAndTheStatusLegend() throws {
+        let app = launch(today: "2026-10-28")
+        XCTAssertTrue(element(app, "calendar.monthTitle").waitForExistence(timeout: 10))
+        let firstCompleted = app.buttons["calendarCell-2026-10-12"]
+        XCTAssertTrue(waitForLabel(firstCompleted, suffix: ", completed"))
+        for day in ["12", "14", "16", "19", "23", "26"] {
+            XCTAssertTrue(app.buttons["calendarCell-2026-10-\(day)"].label.hasSuffix(", completed"), "2026-10-\(day)")
+        }
+        let completed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'calendarCell-' AND label ENDSWITH ', completed'"))
+        XCTAssertEqual(completed.count, 6)
+        XCTAssertTrue(app.buttons["calendarCell-2026-10-21"].label.hasSuffix(", not recorded"))
+
+        let legend = element(app, "calendarLegend")
+        legend.scrollIntoViewIfNeeded(in: app)
+        XCTAssertTrue(legend.exists)
+        XCTAssertTrue(legend.label.contains("completed is blue with a check"))
+        app.swipeUp()
+        keepScreenshot(of: app, named: "Calendar - completed and legend")
+    }
+
+    @MainActor
     func testACompletedSessionShowsTheRun() throws {
         let app = launch(today: "2026-10-28")
         XCTAssertTrue(element(app, "calendar.monthTitle").waitForExistence(timeout: 10))
         app.buttons["calendarCell-2026-10-26"].tap()
         XCTAssertEqual(element(app, "dayCard.status").label, "Completed")
         app.buttons["sessionDetail"].tap()
-        XCTAssertTrue(element(app, "sessionDetailResult").waitForExistence(timeout: 5))
-        XCTAssertTrue(element(app, "sessionDetailResult").label.contains("Your run"))
+        // A completed session shows its result tiles (the run's distance first).
+        XCTAssertTrue(element(app, "workoutTiles").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "workoutTile-distance").label.hasPrefix("Distance"))
         keepScreenshot(of: app, named: "Session detail - completed")
     }
 
@@ -85,6 +107,12 @@ final class CalendarUITests: XCTestCase {
         return app
     }
 
+    /// Runs arrive after the plan, so labels can change after launch.
+    private func waitForLabel(_ element: XCUIElement, suffix: String) -> Bool {
+        let predicate = NSPredicate(format: "label ENDSWITH %@", suffix)
+        return XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: element)], timeout: 10) == .completed
+    }
+
     @MainActor
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier].firstMatch
@@ -96,5 +124,17 @@ final class CalendarUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+}
+
+private extension XCUIElement {
+    /// Swipes up until the element is on screen (the legend sits below the day card).
+    @MainActor
+    func scrollIntoViewIfNeeded(in app: XCUIApplication) {
+        var swipes = 0
+        while !(exists && isHittable) && swipes < 5 {
+            app.swipeUp()
+            swipes += 1
+        }
     }
 }

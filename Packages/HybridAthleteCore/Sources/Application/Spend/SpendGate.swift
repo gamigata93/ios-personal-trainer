@@ -63,7 +63,8 @@ public struct SpendGate: Sendable {
     }
 }
 
-/// Checks the gate before each coach note is sent. Used by the Lab and the real flow alike.
+/// Checks the gate before each coach note is sent (every retry too). The ONE call
+/// gate for notes: the Lab's Workout note and the real flow both go through it.
 public struct SpendGatedCoachingModel: CoachingModel {
     private let inner: any CoachingModel
     private let gate: SpendGate
@@ -73,10 +74,9 @@ public struct SpendGatedCoachingModel: CoachingModel {
         self.gate = gate
     }
 
-    public func writeWorkoutNote(_ request: CoachNoteRequest, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
-        let characters = CoachNotePromptBuilder.build(request).fullText.count
-        try await gate.check(model: model, purpose: purpose, promptCharacters: characters)
-        return try await inner.writeWorkoutNote(request, model: model, purpose: purpose)
+    public func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
+        try await gate.check(model: model, purpose: purpose, promptCharacters: prompt.fullText.count)
+        return try await inner.writeWorkoutNote(prompt, model: model, purpose: purpose)
     }
 }
 

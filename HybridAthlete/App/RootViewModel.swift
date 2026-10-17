@@ -101,9 +101,21 @@ final class RootViewModel {
 
     private func showConnectHealth() {
         connectHealth = makeConnectHealth { [weak self] in
-            self?.showStartingPoint()
+            Task { await self?.afterConnectHealth() }
         }
         route = .connectHealth
+    }
+
+    /// After Connect Health: Home when a plan exists (a new read type asked an
+    /// existing user once more), otherwise the starting point.
+    private func afterConnectHealth() async {
+        switch await resolveLaunchRoute.execute() {
+        case .home:
+            connectHealth = nil
+            await showHome()
+        case .startingPoint, .connectHealth:
+            showStartingPoint()
+        }
     }
 
     /// A fresh starting point (after Connect Health, or after a plan reset).

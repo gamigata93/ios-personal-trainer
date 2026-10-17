@@ -23,7 +23,8 @@ public struct CachedSection<Value: Codable & Sendable & Equatable>: Sendable, Eq
 public struct CachedSnapshot: Sendable, Equatable, Codable {
     /// Bump when the shape changes; older files are then ignored.
     /// 2: running volume gained the average pace.
-    public static let currentSchemaVersion = 2
+    /// 3: workouts gained the observed max heart rate.
+    public static let currentSchemaVersion = 3
 
     public let schemaVersion: Int
     /// When anything was last saved.

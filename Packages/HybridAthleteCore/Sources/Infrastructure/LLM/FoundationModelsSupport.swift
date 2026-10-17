@@ -7,7 +7,7 @@ import Domain
 /// Limits for Foundation Models calls.
 public enum FoundationModelsLimits {
     /// A coach note gives up after this long.
-    public static let coachNoteTimeoutSeconds: Double = 30
+    public static let coachNoteTimeoutSeconds: Double = 45
     /// A plan draft gives up after this long.
     public static let planDraftTimeoutSeconds: Double = 90
     /// The key test gives up after this long.

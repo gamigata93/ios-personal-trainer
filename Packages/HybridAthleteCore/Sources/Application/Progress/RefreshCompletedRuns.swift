@@ -42,7 +42,9 @@ public struct RefreshCompletedRuns: Sendable {
                         id: summary.id,
                         localDate: LocalDate(date: summary.startDate, calendar: calendar),
                         distanceKm: summary.distanceMeters / 1_000,
-                        durationSeconds: summary.durationSeconds
+                        durationSeconds: summary.durationSeconds,
+                        avgHr: summary.averageHeartRate,
+                        maxHr: summary.maxHeartRate
                     )
                 }
                 .filter { $0.localDate >= plan.planStart && $0.localDate <= end }

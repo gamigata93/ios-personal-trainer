@@ -2,7 +2,7 @@ import Foundation
 import Application
 import Domain
 
-/// The Lab's consent flag, caps and cost scenario in UserDefaults. The API key
+/// The Lab's consent flag, caps, cost scenario and coach model in UserDefaults. The API key
 /// never goes here (it is in the Keychain behind `SecretStore`).
 public struct UserDefaultsLabSettingsStore: LabSettingsStore, @unchecked Sendable {
     private enum Key {
@@ -11,6 +11,7 @@ public struct UserDefaultsLabSettingsStore: LabSettingsStore, @unchecked Sendabl
         static let monthlyCap = "lab.monthlyCapMicros"
         static let plansPerMonth = "lab.plansPerMonth"
         static let notesPerMonth = "lab.notesPerMonth"
+        static let coachModel = "lab.coachModelPreference"
     }
 
     // UserDefaults is thread-safe.
@@ -36,7 +37,8 @@ public struct UserDefaultsLabSettingsStore: LabSettingsStore, @unchecked Sendabl
             scenario: CostScenario(
                 plansPerMonth: int(Key.plansPerMonth, default: CostScenario.defaults.plansPerMonth),
                 notesPerMonth: int(Key.notesPerMonth, default: CostScenario.defaults.notesPerMonth)
-            )
+            ),
+            coachModelPreference: defaults.string(forKey: Key.coachModel).flatMap(CoachModelPreference.init(id:)) ?? .automatic
         )
     }
 
@@ -46,5 +48,6 @@ public struct UserDefaultsLabSettingsStore: LabSettingsStore, @unchecked Sendabl
         defaults.set(NSNumber(value: settings.caps.monthlyMicros), forKey: Key.monthlyCap)
         defaults.set(settings.scenario.plansPerMonth, forKey: Key.plansPerMonth)
         defaults.set(settings.scenario.notesPerMonth, forKey: Key.notesPerMonth)
+        defaults.set(settings.coachModelPreference.id, forKey: Key.coachModel)
     }
 }

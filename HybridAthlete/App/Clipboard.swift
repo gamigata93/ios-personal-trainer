@@ -1,11 +1,10 @@
-#if DEBUG
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
 import AppKit
 #endif
 
-/// Puts plain text on the system clipboard. DEBUG only: used by the raw-data sheet.
+/// Puts plain text on the system clipboard: "Copy note", and the DEBUG copies.
 enum Clipboard {
     @MainActor
     static func copy(_ text: String) {
@@ -17,4 +16,3 @@ enum Clipboard {
         #endif
     }
 }
-#endif

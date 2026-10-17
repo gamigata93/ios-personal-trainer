@@ -111,6 +111,13 @@ public struct LabSpendSettings: Sendable {
         await store.save(settings)
     }
 
+    /// "Use for coach notes" and "Automatic" in the Lab.
+    public func setCoachModelPreference(_ preference: CoachModelPreference) async {
+        var settings = await store.load()
+        settings.coachModelPreference = preference
+        await store.save(settings)
+    }
+
     public func setScenario(_ scenario: CostScenario) async {
         var settings = await store.load()
         settings.scenario = scenario

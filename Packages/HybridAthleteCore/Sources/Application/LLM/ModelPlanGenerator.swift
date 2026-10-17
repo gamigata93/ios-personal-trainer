@@ -90,11 +90,11 @@ public struct FallbackCoachingModel: CoachingModel {
         self.fallbackModel = fallbackModel
     }
 
-    public func writeWorkoutNote(_ request: CoachNoteRequest, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
+    public func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
         do {
-            return try await primary.writeWorkoutNote(request, model: model, purpose: purpose)
+            return try await primary.writeWorkoutNote(prompt, model: model, purpose: purpose)
         } catch let error as LLMError where error != .cancelled && model.isPrivateCloud && model != fallbackModel {
-            return try await fallback.writeWorkoutNote(request, model: fallbackModel, purpose: purpose)
+            return try await fallback.writeWorkoutNote(prompt, model: fallbackModel, purpose: purpose)
         }
     }
 }

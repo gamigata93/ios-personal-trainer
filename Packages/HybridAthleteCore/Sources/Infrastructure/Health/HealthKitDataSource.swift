@@ -22,24 +22,8 @@ public struct HealthKitDataSource: HealthDataSource {
 
     // MARK: Access
 
-    /// Every type CLAUDE.md lists, requested together. Sleep, HRV (SDNN) and
-    /// resting heart rate are read for the Recovery section; active energy
-    /// samples are requested now and read in a later slice.
-    private static var readTypes: Set<HKObjectType> {
-        [
-            HKObjectType.workoutType(),
-            HKSeriesType.workoutRoute(),
-            HKQuantityType(.heartRate),
-            HKQuantityType(.restingHeartRate),
-            HKQuantityType(.vo2Max),
-            HKQuantityType(.heartRateVariabilitySDNN),
-            HKCategoryType(.sleepAnalysis),
-            HKQuantityType(.activeEnergyBurned),
-            HKQuantityType(.distanceWalkingRunning),
-            HKCharacteristicType(.dateOfBirth),
-            HKCharacteristicType(.biologicalSex),
-        ]
-    }
+    /// Every type the app reads (`HealthReadSet`), requested together.
+    private static var readTypes: Set<HKObjectType> { HealthReadSet.types }
 
     /// The system's answer to "would the permission sheet still appear". Without
     /// Health on the device there is nothing to ask, so that counts as requested.
@@ -174,13 +158,17 @@ public struct HealthKitDataSource: HealthDataSource {
         return workouts
             .filter { $0.workoutActivityType == .running }
             .map { workout in
-                RunSummary(
+                let heartRate = workout.statistics(for: HKQuantityType(.heartRate))
+                let bpm = HKUnit.count().unitDivided(by: .minute())
+                return RunSummary(
                     id: workout.uuid.uuidString,
                     startDate: workout.startDate,
                     distanceMeters: workout.statistics(for: HKQuantityType(.distanceWalkingRunning))?
                         .sumQuantity()?
                         .doubleValue(for: .meter()) ?? 0,
-                    durationSeconds: workout.duration
+                    durationSeconds: workout.duration,
+                    averageHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),
+                    maxHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm)
                 )
             }
     }
@@ -304,20 +292,7 @@ public struct HealthKitDataSource: HealthDataSource {
 
     /// Translates HealthKit errors into `HealthDataError` at the boundary.
     private func translatingErrors<T>(_ body: () async throws -> T) async throws(HealthDataError) -> T {
-        do {
-            return try await body()
-        } catch let error as HKError {
-            switch error.code {
-            case .errorDatabaseInaccessible: throw .locked
-            case .errorAuthorizationDenied, .errorAuthorizationNotDetermined: throw .notAllowed
-            case .errorHealthDataUnavailable, .errorHealthDataRestricted: throw .unavailable
-            default: throw .failed
-            }
-        } catch let error as HealthDataError {
-            throw error
-        } catch {
-            throw .failed
-        }
+        try await translatingHealthKitErrors(body)
     }
 }
 

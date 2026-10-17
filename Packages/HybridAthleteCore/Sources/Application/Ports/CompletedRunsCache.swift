@@ -9,10 +9,12 @@ public protocol CompletedRunsCache: Sendable {
     func save(_ runs: CachedRuns) async throws
 }
 
-/// Summaries only: no routes, heart rate or source names.
+/// Summaries only: no routes, heart-rate samples or source names (a run's
+/// average and max heart rate are kept).
 public struct CachedRuns: Sendable, Equatable, Codable {
     /// Bump when the shape changes; older files are then ignored.
-    public static let currentSchemaVersion = 1
+    /// 2: runs gained their average and max heart rate.
+    public static let currentSchemaVersion = 2
 
     public let schemaVersion: Int
     public let generatedAt: Date

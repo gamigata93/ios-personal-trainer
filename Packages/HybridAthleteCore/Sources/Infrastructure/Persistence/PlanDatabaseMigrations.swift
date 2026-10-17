@@ -87,6 +87,46 @@ enum PlanDatabaseMigrations {
                 CREATE INDEX llm_usage_createdAt ON llm_usage(createdAt);
                 """)
         }
+        // One current coach note per session (v3 had not shipped, so the v2 note's
+        // columns are folded in here). Prompts and raw outputs are never stored:
+        // only the note's own fields. observation holds "how it went".
+        migrator.registerMigration("v3_coach_note") { db in
+            try db.execute(sql: """
+                CREATE TABLE coach_note (
+                    planId TEXT NOT NULL,
+                    sessionId TEXT NOT NULL,
+                    runId TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    provider TEXT NULL,
+                    modelTag TEXT NOT NULL,
+                    headline TEXT NOT NULL,
+                    observation TEXT NOT NULL,
+                    versusPlan TEXT NULL,
+                    programStatus TEXT NULL,
+                    nextStep TEXT NOT NULL,
+                    verdict TEXT NOT NULL,
+                    flags TEXT NOT NULL,
+                    inputHash TEXT NOT NULL,
+                    analysisVersion INTEGER NOT NULL DEFAULT 1,
+                    factsLevel INTEGER NULL,
+                    PRIMARY KEY (planId, sessionId),
+                    FOREIGN KEY (planId, sessionId) REFERENCES plan_session(planId, id) ON DELETE CASCADE
+                );
+                """)
+        }
+        // Derived analysis per Health workout (summaries only, no coordinates or
+        // sample timestamps). Kept when a plan is deleted.
+        migrator.registerMigration("v4_workout_analysis") { db in
+            try db.execute(sql: """
+                CREATE TABLE workout_analysis (
+                    runId TEXT PRIMARY KEY NOT NULL,
+                    computedAt TEXT NOT NULL,
+                    schemaVersion INTEGER NOT NULL,
+                    json TEXT NOT NULL
+                );
+                """)
+        }
         return migrator
     }
 }

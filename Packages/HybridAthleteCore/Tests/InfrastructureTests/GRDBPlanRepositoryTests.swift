@@ -174,7 +174,7 @@ struct DatabaseMigrationTests {
         let first = try DatabaseProvider.onDisk(directory: directory)
         try await GRDBPlanRepository(database: first, clock: TestClock()).save(F.base)
         let applied = try await first.writer.read { db in try PlanDatabaseMigrations.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1_plan", "v2_llm_usage"])
+        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis"])
         let tables = try await first.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'plan%' ORDER BY name")
         }

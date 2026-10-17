@@ -26,11 +26,19 @@ public struct LabSettings: Sendable, Equatable {
     public var consentGiven: Bool
     public var caps: SpendCaps
     public var scenario: CostScenario
+    /// Which model writes coach notes ("Use for coach notes" in the Lab).
+    public var coachModelPreference: CoachModelPreference
 
-    public init(consentGiven: Bool = false, caps: SpendCaps = .defaults, scenario: CostScenario = .defaults) {
+    public init(
+        consentGiven: Bool = false,
+        caps: SpendCaps = .defaults,
+        scenario: CostScenario = .defaults,
+        coachModelPreference: CoachModelPreference = .automatic
+    ) {
         self.consentGiven = consentGiven
         self.caps = caps
         self.scenario = scenario
+        self.coachModelPreference = coachModelPreference
     }
 }
 

@@ -90,14 +90,21 @@ struct ModelLabViewModelTests {
             refreshCompletedRuns: RefreshCompletedRuns(health: StubHealthDataSource(), cache: runsCache, clock: Wednesday(), calendar: .current),
             clock: Wednesday()
         )
+        let analyses = MemoryWorkoutAnalyses()
+        let prepare = PrepareWorkoutNote(
+            analyze: AnalyzeWorkout(source: FakeWorkoutDetailSource(scenario: .tempo, runs: { [] }, activePlan: { nil }), analyses: analyses, clock: Wednesday()),
+            build: BuildWorkoutNoteRequest(
+                profile: { FakeHeartRateProfile.profile }, sleep: StubSleepCache(), recovery: StubRecoveryCache(),
+                analyses: analyses, clock: Wednesday(), calendar: .current
+            )
+        )
         let viewModel = ModelLabViewModel(
             runner: RunModelExperiment(coaching: models.coaching, drafting: models.drafting, availability: models.availability, template: TemplatePlanGenerator()),
-            buildFacts: BuildLatestSessionFacts(),
+            prepareNote: prepare,
             buildPlanRequest: BuildLabPlanRequest(fitness: LoadFitnessSummary(cache: StubSnapshotCache()), clock: Wednesday(), calendar: .current),
             plans: plans,
             runs: runs,
-            loadCachedSleep: LoadCachedSleep(cache: StubSleepCache()),
-            loadCachedRecovery: LoadCachedRecovery(cache: StubRecoveryCache()),
+            settings: LabSpendSettings(store: models.spend.settings),
             errorText: LLMErrorText(calendar: .current, locale: Locale(identifier: "en_GB"), now: { Wednesday().now() }),
             today: { LocalDate(year: 2026, month: 10, day: 28) },
             claude: CompositionRoot.makeClaudeLab(spend: models.spend, clock: Wednesday())
@@ -106,7 +113,7 @@ struct ModelLabViewModelTests {
         return viewModel
     }
 
-    @Test func sampleCoachNoteOnDevice() async {
+    @Test func sampleWorkoutNoteOnDevice() async {
         let viewModel = await lab()
         #expect(viewModel.status?.availability == .available)
         #expect(viewModel.status?.contextSize == 4_096)
@@ -116,8 +123,9 @@ struct ModelLabViewModelTests {
         #expect(card?.id == 1)
         #expect(card?.result.usage?.latencyText == "1.2 s")
         #expect(card?.result.usage?.line == "in 312 · out 64 · cached 0")
-        #expect(card?.json?.contains("\"experiment\" : \"coachNote\"") == true)
-        if case .coachNote = card?.result.output {} else { Issue.record("expected a coach note") }
+        #expect(card?.json?.contains("\"experiment\" : \"workoutNote\"") == true)
+        if case .workoutNote = card?.result.output {} else { Issue.record("expected a workout note") }
+        #expect(card?.result.factsLevel == 0)
     }
 
     @Test func latestWithoutRunsExplainsWhy() async {

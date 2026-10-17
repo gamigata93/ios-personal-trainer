@@ -81,6 +81,9 @@ struct HomeViewModelTests {
     private func makeScreens(
         health: FakeHealth,
         plans: StubPlans = StubPlans(plan: SeedPlan.plan(createdAt: .distantPast)),
+        coaching: any CoachingModel = CountingCoachingModel(),
+        coachNotes: MemoryCoachNotes = MemoryCoachNotes(),
+        autoNotes: Bool = false,
         onNoPlan: @escaping @MainActor () -> Void = {}
     ) -> MainScreens {
         let runsCache = StubRunsCache()
@@ -92,6 +95,11 @@ struct HomeViewModelTests {
             loadCompletedRuns: LoadCompletedRuns(cache: runsCache),
             refreshCompletedRuns: RefreshCompletedRuns(health: health, cache: runsCache, clock: Wednesday(), calendar: Self.utc),
             clock: Wednesday()
+        )
+        let notes = makeCoachNotes(
+            plans: planStore, runs: runs, clock: Wednesday(), calendar: Self.utc,
+            detail: FakeWorkoutDetailSource(scenario: .tempo, runs: { [] }, activePlan: { nil }),
+            coaching: coaching, notes: coachNotes, today: LocalDate(year: 2026, month: 10, day: 28)
         )
         let home = HomeViewModel(
             plans: planStore,
@@ -110,15 +118,23 @@ struct HomeViewModelTests {
             ),
             deleteActivePlan: DeleteActivePlan(plans: plans),
             clock: Wednesday(),
+            notes: notes,
             onNoPlan: onNoPlan
         )
+        if autoNotes { runs.onRefreshed = { await notes.afterRefresh() } }
         let getSessionDetail = GetSessionDetail(clock: Wednesday(), calendar: Self.utc)
         return MainScreens(
             plans: planStore,
             runs: runs,
             home: home,
             calendar: CalendarViewModel(plans: planStore, runs: runs, getCalendarMonth: GetCalendarMonth(clock: Wednesday(), calendar: Self.utc)),
-            makeSessionDetail: { SessionDetailViewModel(sessionID: $0, plans: planStore, runs: runs, getSessionDetail: getSessionDetail) }
+            notes: notes,
+            makeSessionDetail: {
+                SessionDetailViewModel(
+                    sessionID: $0, plans: planStore, runs: runs, notes: notes, getSessionDetail: getSessionDetail,
+                    clock: Wednesday(), calendar: Self.utc
+                )
+            }
         )
     }
 
@@ -440,6 +456,38 @@ struct HomeViewModelTests {
         #expect(screens.home.overview?.planCard.ringValue == "86%")
         screens.home.showPreviousWeek()
         #expect(screens.home.overview?.week?.days.first { $0.date == day(10, 21) }?.status == .missed)
+    }
+
+    // MARK: Status looks
+
+    /// The October cells drawn with each look: badged, dashed and struck days.
+    private func looks(_ calendar: CalendarViewModel) throws -> (badged: [Int], dashed: [Int], struck: [Int]) {
+        let cells = try #require(calendar.overview?.cells).filter { !$0.isRaceDay }
+        func days(_ test: (SessionStatusPresentation) -> Bool) -> [Int] {
+            cells.filter { cell in cell.status.map { test(.presentation($0)) } ?? false }.map(\.date.day)
+        }
+        return (days(\.showsCheckBadge), days { $0.cellBorder == .dashed }, days { $0.iconDecoration == .strike })
+    }
+
+    @Test func octoberShowsSixBadgesAndOneDashedDay() async throws {
+        let screens = await calendarOn28()
+        let calendar = screens.calendar
+        let before = try looks(calendar)
+        #expect(before.badged == [12, 14, 16, 19, 23, 26])
+        #expect(before.dashed == [21])
+        #expect(before.struck.isEmpty)
+        let cells = try #require(calendar.overview?.cells)
+        for day in [12, 14, 16, 19, 23, 26] {
+            #expect(cells.first { $0.date.day == day }?.accessibilityLabel.hasSuffix(", completed") == true)
+        }
+        #expect(cells.first { $0.date.day == 21 }?.accessibilityLabel.hasSuffix(", not recorded") == true)
+
+        calendar.select(day(10, 21))
+        await calendar.perform(try action(.markMissed, calendar))
+        let after = try looks(calendar)
+        #expect(after.badged == [12, 14, 16, 19, 23, 26])
+        #expect(after.dashed.isEmpty)
+        #expect(after.struck == [21])
     }
 
     @Test func aFailedEditLeavesThePlanAndShowsTheFailure() async throws {

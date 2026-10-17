@@ -18,6 +18,8 @@ final class CompletedRunsStore {
 
     private(set) var result: CompletedRunsResult = .none
     private(set) var state: RefreshState = .idle
+    /// Runs after every refresh (the coach notes write their notes then).
+    var onRefreshed: (@MainActor () async -> Void)?
 
     private let plans: ActivePlanStore
     private let loadCompletedRuns: LoadCompletedRuns
@@ -62,6 +64,7 @@ final class CompletedRunsStore {
         inFlight = task
         await task.value
         inFlight = nil
+        await onRefreshed?()
     }
 
     /// Opening a tab and returning to the foreground: refresh when the last one

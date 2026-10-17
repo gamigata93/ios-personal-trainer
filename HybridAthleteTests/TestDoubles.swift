@@ -188,3 +188,102 @@ extension ActivePlanStore {
         )
     }
 }
+
+/// Coach notes in memory, counting saves.
+actor MemoryCoachNotes: CoachNoteRepository {
+    private(set) var stored: [String: SavedCoachNote] = [:]
+    private(set) var saveCount = 0
+
+    func note(planId: String, sessionId: String) async throws -> SavedCoachNote? { stored[sessionId] }
+    func save(_ note: SavedCoachNote) async throws {
+        saveCount += 1
+        stored[note.sessionId] = note
+    }
+    func notes(planId: String) async throws -> [SavedCoachNote] { Array(stored.values) }
+    func delete(planId: String, sessionId: String) async throws { stored[sessionId] = nil }
+}
+
+/// Workout analyses in memory.
+actor MemoryWorkoutAnalyses: WorkoutAnalysisRepository {
+    private var stored: [String: WorkoutAnalysis] = [:]
+
+    func analysis(runId: String) async throws -> WorkoutAnalysis? { stored[runId] }
+    func save(_ analysis: WorkoutAnalysis) async throws { stored[analysis.runId] = analysis }
+    func delete(runId: String) async throws { stored[runId] = nil }
+}
+
+/// Counts how many notes run at once and how often each session is written.
+actor CountingCoachingModel: CoachingModel {
+    private(set) var running = 0
+    private(set) var maxRunning = 0
+    private(set) var calls = 0
+    let note: CoachNote
+    let delay: Duration
+
+    init(note: CoachNote = CoachNote(
+        headline: "Steady", howItWent: "A controlled run.", versusPlan: "As planned.", programStatus: "On track.", nextStep: "Rest."
+    ), delay: Duration = .milliseconds(20)) {
+        self.note = note
+        self.delay = delay
+    }
+
+    func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
+        calls += 1
+        running += 1
+        maxRunning = max(maxRunning, running)
+        defer { running -= 1 }
+        try await Task.sleep(for: delay)
+        return CoachNoteResult(note: note, usage: LLMUsage(latencyMs: 1), promptText: prompt.fullText, model: model)
+    }
+}
+
+/// Every Apple model available, 4,096 tokens of context.
+struct AllAvailable: ModelAvailabilityChecker {
+    func status(for model: ModelChoice) async -> ModelStatus {
+        ModelStatus(availability: model.provider == .apple ? .available : .needsAPIKey, contextSize: 4_096)
+    }
+}
+
+/// Lab settings in memory.
+actor MemoryLabSettings: LabSettingsStore {
+    var settings = LabSettings()
+    func load() async -> LabSettings { settings }
+    func save(_ settings: LabSettings) async { self.settings = settings }
+}
+
+/// A coach note store over the shared plan and runs, with in-memory storage, a
+/// fixed heart-rate profile (182/49) and `detail` for every run.
+@MainActor
+func makeCoachNotes(
+    plans: ActivePlanStore,
+    runs: CompletedRunsStore,
+    clock: any Clock,
+    calendar: Calendar,
+    detail: any WorkoutDetailSource,
+    coaching: any CoachingModel = CountingCoachingModel(),
+    notes: MemoryCoachNotes = MemoryCoachNotes(),
+    preference: CoachModelPreference? = nil,
+    today: LocalDate
+) -> CoachNoteStore {
+    let analyses = MemoryWorkoutAnalyses()
+    let prepare = PrepareWorkoutNote(
+        analyze: AnalyzeWorkout(source: detail, analyses: analyses, clock: clock),
+        build: BuildWorkoutNoteRequest(
+            profile: { HeartRateProfile(maxHr: 182, restingHr: 49) }, sleep: StubSleepCache(), recovery: StubRecoveryCache(),
+            analyses: analyses, clock: clock, calendar: calendar
+        )
+    )
+    return CoachNoteStore(
+        plans: plans,
+        runs: runs,
+        generate: GenerateDetailedCoachNote(
+            prepare: prepare,
+            write: WriteWorkoutNote(coaching: coaching, availability: AllAvailable(), settings: MemoryLabSettings(), preferenceOverride: preference),
+            notes: notes,
+            clock: clock
+        ),
+        prepare: prepare,
+        loadNotes: LoadCoachNotes(notes: notes),
+        today: { today }
+    )
+}

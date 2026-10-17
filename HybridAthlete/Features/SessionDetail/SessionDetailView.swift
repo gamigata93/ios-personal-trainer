@@ -2,8 +2,9 @@ import SwiftUI
 import Domain
 import Application
 
-/// A planned session, pushed over Home or Calendar with no tab bar. Read-only:
-/// only what the plan and the runs contain.
+/// A planned session, pushed over Home or Calendar with no tab bar. A completed
+/// session shows its result tiles, the coach's note, splits, heart-rate zones and
+/// plan vs actual (sections without data are hidden); the others show the plan.
 struct SessionDetailView: View {
     let viewModel: SessionDetailViewModel
     let onBack: () -> Void
@@ -13,16 +14,21 @@ struct SessionDetailView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.detailBlocks) {
                 if let detail = viewModel.detail {
                     topRow(caption: detail.caption, date: detail.dateText)
-                    titleBlock(detail)
-                    tiles(detail)
-                    if let result = detail.result {
-                        ResultCard(result: result)
-                    }
-                    if !detail.segments.isEmpty {
-                        structure(detail.segments)
-                    }
-                    if let note = detail.note {
-                        NoteCard(text: note)
+                    if let breakdown = viewModel.breakdown {
+                        titleBlock(detail, verdict: breakdown.verdict)
+                        completed(breakdown)
+                    } else {
+                        titleBlock(detail, verdict: nil)
+                        tiles(detail)
+                        if let result = detail.result {
+                            ResultCard(result: result)
+                        }
+                        if !detail.segments.isEmpty {
+                            structure(detail.segments)
+                        }
+                        if let note = detail.note {
+                            NoteCard(text: note)
+                        }
                     }
                 } else {
                     topRow(caption: "Session", date: nil)
@@ -39,6 +45,34 @@ struct SessionDetailView: View {
         }
         .background(Theme.Palette.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .task { await viewModel.appear() }
+    }
+
+    /// Tiles, the coach's note, splits, zones, plan vs actual and the data footnote.
+    @ViewBuilder
+    private func completed(_ breakdown: WorkoutBreakdown) -> some View {
+        WorkoutTilesView(tiles: breakdown.tiles)
+        if let waiting = viewModel.analysisWaitingText {
+            Text(waiting)
+                .font(Theme.Typography.breakdownFootnote)
+                .foregroundStyle(Theme.Palette.mutedText)
+                .accessibilityIdentifier("analysisWaiting")
+        }
+        CoachNoteCardView(viewModel: viewModel)
+        if !breakdown.splits.isEmpty {
+            SplitsCardView(breakdown: breakdown)
+        }
+        if !breakdown.zones.isEmpty {
+            ZonesCardView(zones: breakdown.zones)
+        }
+        if !breakdown.blocks.isEmpty {
+            PlanVsActualCardView(blocks: breakdown.blocks)
+        }
+        Text(breakdown.footnote)
+            .font(Theme.Typography.breakdownFootnote)
+            .foregroundStyle(Theme.Palette.mutedText)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("workoutFootnote")
     }
 
     // MARK: Parts
@@ -60,7 +94,7 @@ struct SessionDetailView: View {
         }
     }
 
-    private func titleBlock(_ detail: SessionDetailOverview) -> some View {
+    private func titleBlock(_ detail: SessionDetailOverview, verdict: WorkoutVerdict?) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.compact) {
             Text(detail.name)
                 .font(Theme.Typography.detailTitle)
@@ -74,7 +108,7 @@ struct SessionDetailView: View {
             }
             FlowLayout(spacing: Theme.Spacing.chipRow, lineSpacing: Theme.Spacing.chipRow) {
                 HStack(spacing: Theme.Spacing.tight + 2) {
-                    SessionTypeIcon(type: detail.type, size: Theme.Size.chipIcon, color: Theme.Palette.softText)
+                    SessionTypeIcon(type: detail.type, size: Theme.Size.chipIcon, presentation: .presentation(detail.status))
                     Text(detail.typeName).font(Theme.Typography.typeChip)
                 }
                 .foregroundStyle(Theme.Palette.softText)
@@ -83,7 +117,10 @@ struct SessionDetailView: View {
                 .overlay { Capsule().strokeBorder(Theme.Palette.iconRing, lineWidth: Theme.Size.borderWidth) }
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("sessionDetailType")
-                StatusChip(status: detail.status, text: detail.statusText, identifier: "sessionDetailStatus")
+                StatusChip(status: detail.status, identifier: "sessionDetailStatus")
+                if let verdict {
+                    NeutralChip(text: verdict.chipText, identifier: "sessionDetailVerdict")
+                }
             }
             Text(detail.weekPhaseLine)
                 .font(Theme.Typography.weekPhaseLine)

@@ -16,8 +16,8 @@ final class ModelLabUITests: XCTestCase {
         let first = element(app, "modelLabResult-1")
         XCTAssertTrue(first.waitForExistence(timeout: 10))
         XCTAssertTrue(first.label.hasPrefix("On-device, 1.2 s, in 312 · out 64 · cached 0"), first.label)
-        XCTAssertTrue(first.label.contains("Coach note: "))
-        keepScreenshot(of: app, named: "Model Lab - coach note")
+        XCTAssertTrue(first.label.contains("Workout note: "), first.label)
+        keepScreenshot(of: app, named: "Model Lab - workout note")
 
         app.buttons["modelLabExperiment-planDraft"].tap()
         app.buttons["modelLabRun"].tap()

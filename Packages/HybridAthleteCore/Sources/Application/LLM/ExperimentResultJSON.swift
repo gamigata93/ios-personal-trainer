@@ -26,7 +26,9 @@ public enum ExperimentResultJSON {
             violations: result.violations,
             softFlags: result.softFlags,
             promptText: result.promptText,
-            error: result.error.map(errorText.message)
+            error: result.error.map(errorText.message),
+            factsLevel: result.factsLevel,
+            estimatedTokens: result.estimatedTokens
         )
         return (try? encoder.encode(payload)).flatMap { String(data: $0, encoding: .utf8) }
     }
@@ -43,6 +45,8 @@ public enum ExperimentResultJSON {
         let softFlags: [String]
         let promptText: String
         let error: String?
+        let factsLevel: Int?
+        let estimatedTokens: Int?
     }
 
     private struct Usage: Encodable {
@@ -56,18 +60,18 @@ public enum ExperimentResultJSON {
     }
 
     private struct Output: Encodable {
-        let coachNote: CoachNote?
+        let workoutNote: CoachNote?
         let planDraft: PlanDraft?
         let rows: [String]?
 
         init(_ output: ExperimentOutput) {
             switch output {
-            case .coachNote(let note):
-                coachNote = note
+            case .workoutNote(let note):
+                workoutNote = note
                 planDraft = nil
                 rows = nil
             case .planDraft(let table):
-                coachNote = nil
+                workoutNote = nil
                 planDraft = table.draft
                 rows = table.rows
             }

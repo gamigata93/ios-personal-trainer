@@ -20,11 +20,17 @@ public struct GRDBPlanRepository: PlanRepository {
     /// A fresh in-memory database holding `plan` as the active plan, ready at
     /// once (written synchronously): DEBUG `-seedPlan`, previews and tests.
     public static func inMemory(seededWith plan: TrainingPlan?, clock: any Clock) throws -> GRDBPlanRepository {
+        GRDBPlanRepository(database: try seededDatabase(plan), clock: clock)
+    }
+
+    /// A fresh in-memory database holding `plan` as the active plan, so other
+    /// repositories (coach notes, analyses) can share it.
+    public static func seededDatabase(_ plan: TrainingPlan?) throws -> DatabaseProvider {
         let database = try DatabaseProvider.inMemory()
         if let plan {
             try database.writer.write { db in try insert(plan, db: db) }
         }
-        return GRDBPlanRepository(database: database, clock: clock)
+        return database
     }
 
     // MARK: Plan

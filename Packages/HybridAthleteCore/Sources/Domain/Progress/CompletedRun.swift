@@ -6,12 +6,17 @@ public struct CompletedRun: Sendable, Equatable, Codable {
     public let localDate: LocalDate
     public let distanceKm: Double
     public let durationSeconds: Double
+    /// The workout's average and max heart rate, when the source recorded it.
+    public let avgHr: Double?
+    public let maxHr: Double?
 
-    public init(id: String, localDate: LocalDate, distanceKm: Double, durationSeconds: Double) {
+    public init(id: String, localDate: LocalDate, distanceKm: Double, durationSeconds: Double, avgHr: Double? = nil, maxHr: Double? = nil) {
         self.id = id
         self.localDate = localDate
         self.distanceKm = distanceKm
         self.durationSeconds = durationSeconds
+        self.avgHr = avgHr
+        self.maxHr = maxHr
     }
 }
 

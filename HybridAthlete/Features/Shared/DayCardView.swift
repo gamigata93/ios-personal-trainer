@@ -46,7 +46,7 @@ struct DayCardView: View {
         Group {
             switch card {
             case .session(let session):
-                SessionTypeIcon(type: session.type, size: Theme.Size.thumbnailIcon, color: session.status.iconColor, isStruck: session.status.isStruck)
+                SessionTypeIcon(type: session.type, size: Theme.Size.thumbnailIcon, presentation: .presentation(session.status))
             case .rest:
                 Image(systemName: "moon").font(Theme.Typography.thumbnailGlyph).foregroundStyle(Theme.Palette.mutedText)
             case .race:
@@ -74,7 +74,7 @@ struct DayCardView: View {
                 .font(Theme.Typography.sessionMeta)
                 .foregroundStyle(Theme.Palette.mutedText)
             FlowLayout(spacing: Theme.Spacing.chipRow, lineSpacing: Theme.Spacing.chipRow) {
-                StatusChip(status: session.status, text: session.statusText)
+                StatusChip(status: session.status)
                 if let movedFrom = session.movedFrom {
                     MovedChip(text: movedFrom)
                 }
@@ -117,22 +117,23 @@ struct MovedChip: View {
     }
 }
 
+/// "Completed", "Today", ...: text, color and fill from the status presentation.
 struct StatusChip: View {
     let status: SessionStatus
-    let text: String
     var identifier = "dayCard.status"
 
     var body: some View {
+        let look = SessionStatusPresentation.presentation(status)
         HStack(spacing: Theme.Spacing.tight) {
-            if status == .completed {
+            if look.showsCheckBadge {
                 Image(systemName: "checkmark").font(Theme.Typography.statusChip)
             }
-            Text(text).font(Theme.Typography.statusChip)
+            Text(look.chipText).font(Theme.Typography.statusChip)
         }
-        .foregroundStyle(status.chipColor)
+        .foregroundStyle(look.chipColor)
         .padding(.vertical, Theme.Spacing.statusChipVertical)
         .padding(.horizontal, Theme.Spacing.statusChipHorizontal)
-        .background(status.chipColor.opacity(Theme.Opacity.statusChipFill), in: Capsule())
+        .background(look.chipFill, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
     }

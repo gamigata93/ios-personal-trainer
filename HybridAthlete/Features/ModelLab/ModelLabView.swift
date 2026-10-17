@@ -21,6 +21,9 @@ struct ModelLabView: View {
                 if let status = viewModel.status {
                     AvailabilityCard(model: viewModel.selectedModel, status: status, quotaLine: viewModel.quotaLine)
                 }
+                Button("Use for coach notes") { Task { await viewModel.useForCoachNotes() } }
+                    .buttonStyle(OutlineButtonStyle())
+                    .accessibilityIdentifier("modelLabUseForNotes")
                 if viewModel.selectedModel.provider == .anthropic {
                     APIKeyCard(claude: viewModel.claude, focus: $focus)
                     SpendGuardCard(claude: viewModel.claude, focus: $focus)
@@ -62,6 +65,20 @@ struct ModelLabView: View {
 
     private var modelSelector: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.labCardRows) {
+            FlowLayout(spacing: Theme.Spacing.labPills, lineSpacing: Theme.Spacing.labPills) {
+                LabFilledChip(text: viewModel.coachPreferenceText, tone: .accent)
+                    .accessibilityIdentifier("modelLabCoachModel")
+                if viewModel.coachPreference != .automatic {
+                    Button { Task { await viewModel.useAutomaticForCoachNotes() } } label: {
+                        LabOutlineChip(text: "Automatic")
+                            .frame(minHeight: Theme.Size.minTouchTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Use Automatic for coach notes")
+                    .accessibilityIdentifier("modelLabUseAutomatic")
+                }
+            }
             modelGroup("Apple", models: ModelChoice.apple)
             modelGroup("Anthropic", models: ModelChoice.claude)
             if let line = viewModel.claude.priceLine(viewModel.selectedModel) {
@@ -97,11 +114,22 @@ struct ModelLabView: View {
                 }
             }
             if viewModel.experiment == .coachNote {
+                Text("The real note pipeline on one of your completed sessions, newest first. Nothing is saved.")
+                    .font(Theme.Typography.labMeta)
+                    .foregroundStyle(Theme.Palette.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
                 FlowLayout(spacing: Theme.Spacing.labPills, lineSpacing: Theme.Spacing.labPills) {
-                    ForEach(ModelLabViewModel.CoachInput.allCases) { input in
-                        LabPill(title: input.title, isSelected: viewModel.coachInput == input, identifier: "modelLabInput-\(input.rawValue)") {
-                            viewModel.coachInput = input
+                    ForEach(viewModel.sessionChoices) { choice in
+                        LabPill(
+                            title: choice.title,
+                            isSelected: viewModel.coachInput != .sample && viewModel.selectedSessionID == choice.id,
+                            identifier: "modelLabInput-\(choice.id)"
+                        ) {
+                            viewModel.coachInput = .session(choice.id)
                         }
+                    }
+                    LabPill(title: "Sample: tempo run", isSelected: viewModel.coachInput == .sample, identifier: "modelLabInput-sample") {
+                        viewModel.coachInput = .sample
                     }
                 }
                 if let text = viewModel.latestUnavailableText, viewModel.coachInput == .latest {
@@ -299,13 +327,20 @@ private struct ResultCard: View {
             .font(Theme.Typography.labPill)
             .tint(Theme.Palette.softText)
             .foregroundStyle(Theme.Palette.text)
-            if let json = card.json {
-                Button(copied ? "Copied" : "Copy result JSON") {
-                    Clipboard.copy(json)
-                    copied = true
+            HStack(spacing: Theme.Spacing.labPills) {
+                if result.factsLevel != nil {
+                    Button("Copy facts") { Clipboard.copy(result.promptText) }
+                        .buttonStyle(OutlineButtonStyle())
+                        .accessibilityIdentifier("modelLabCopyFacts")
                 }
-                .buttonStyle(OutlineButtonStyle())
-                .accessibilityIdentifier("modelLabCopy")
+                if let json = card.json {
+                    Button(copied ? "Copied" : "Copy result JSON") {
+                        Clipboard.copy(json)
+                        copied = true
+                    }
+                    .buttonStyle(OutlineButtonStyle())
+                    .accessibilityIdentifier("modelLabCopy")
+                }
             }
         }
     }
@@ -325,6 +360,16 @@ private struct ResultCard: View {
                 if let validity = result.validityText {
                     LabFilledChip(text: validity, tone: validity == "Valid" ? .accent : .warning)
                 }
+                if let level = result.factsLevel {
+                    LabOutlineChip(text: "Facts level \(level)")
+                        .accessibilityIdentifier("modelLabFactsLevel-\(card.id)")
+                }
+                if let tokens = result.estimatedTokens {
+                    Text("~\(tokens) fact tokens").font(Theme.Typography.labMeta).foregroundStyle(Theme.Palette.softText)
+                }
+                if let guardText = result.guardText {
+                    LabFilledChip(text: guardText, tone: result.softFlags.isEmpty ? .accent : .warning)
+                }
             }
             if let line = result.usage?.line, !line.isEmpty {
                 Text(line).font(Theme.Typography.labMeta).foregroundStyle(Theme.Palette.mutedText)
@@ -336,9 +381,11 @@ private struct ResultCard: View {
                 Text(cache).font(Theme.Typography.labMeta).foregroundStyle(Theme.Palette.mutedText)
             }
             switch result.output {
-            case .coachNote(let note):
+            case .workoutNote(let note):
                 Text(note.headline).font(Theme.Typography.labNoteHeadline).foregroundStyle(Theme.Palette.text)
-                Text(note.observation).font(Theme.Typography.labBody).foregroundStyle(Theme.Palette.softText)
+                Text(note.howItWent).font(Theme.Typography.labBody).foregroundStyle(Theme.Palette.softText)
+                Text(note.versusPlan).font(Theme.Typography.labBody).foregroundStyle(Theme.Palette.softText)
+                Text(note.programStatus).font(Theme.Typography.labBody).foregroundStyle(Theme.Palette.softText)
                 Text(note.nextStep).font(Theme.Typography.labBody).foregroundStyle(Theme.Palette.text)
             case .planDraft(let table):
                 ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
@@ -371,7 +418,8 @@ private struct ResultCard: View {
         if let validity = result.validityText { parts.append(validity) }
         var text = parts.joined(separator: ", ") + "."
         switch result.output {
-        case .coachNote(let note): text += " Coach note: \(note.headline). \(note.observation) \(note.nextStep)"
+        case .workoutNote(let note):
+            text += " Workout note: \(note.headline). \(note.howItWent) \(note.versusPlan) \(note.programStatus) \(note.nextStep)"
         case .planDraft(let table): text += " Plan draft with \(table.rows.count) weeks. " + table.rows.joined(separator: ". ")
         case nil: break
         }

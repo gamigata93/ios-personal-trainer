@@ -2,11 +2,12 @@ import Foundation
 
 /// Why a model was called. Stored with every ledger record.
 public enum LLMCallPurpose: String, Sendable, Equatable, Hashable, CaseIterable, Codable {
-    case labCoachNote, labPlanDraft, planGeneration, coachNote, keyTest
+    /// labCoachNote is the Lab's "Workout note"; workoutNote the real flow's note.
+    case labCoachNote, labPlanDraft, planGeneration, coachNote, keyTest, workoutNote
 
     public var task: LLMTask {
         switch self {
-        case .labCoachNote, .coachNote: .coachNote
+        case .labCoachNote, .coachNote, .workoutNote: .coachNote
         case .labPlanDraft, .planGeneration: .planDraft
         case .keyTest: .keyTest
         }
@@ -30,7 +31,8 @@ public enum LLMTask: Sendable, Equatable {
 public enum LLMSpendRules {
     /// Output ceilings: sent to Claude as max_tokens (the package honors them), and
     /// the worst case the spend guard assumes. Thinking tokens count against them.
-    public static let coachNoteMaxOutputTokens = 600
+    /// The four-part workout note (up to 1,180 characters) plus light thinking.
+    public static let coachNoteMaxOutputTokens = 1_000
     public static let planDraftMaxOutputTokens = 4_000
     public static let keyTestMaxOutputTokens = 8
     /// Conservative: newer tokenizers produce more tokens per character, so

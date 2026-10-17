@@ -18,10 +18,12 @@ public struct CoachNoteResult: Sendable, Equatable {
     }
 }
 
-/// Writes coach notes. Adapters throw `LLMError` only, and record every attempt
-/// they send (success or failure) through `LLMCallRecorder` under `purpose`.
+/// Writes post-workout notes from a finished prompt (instructions and facts,
+/// built by `DetailedNotePromptBuilder`). Adapters throw `LLMError` only, and
+/// record every attempt they send (success or failure) through `LLMCallRecorder`
+/// under `purpose`.
 public protocol CoachingModel: Sendable {
-    func writeWorkoutNote(_ request: CoachNoteRequest, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult
+    func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult
 }
 
 /// A plan structure from a model, with what it cost.

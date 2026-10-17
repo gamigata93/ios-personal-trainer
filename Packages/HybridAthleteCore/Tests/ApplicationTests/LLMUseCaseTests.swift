@@ -121,16 +121,17 @@ private struct FakeDrafting: PlanDraftingModel {
 }
 
 private actor FakeCoaching: CoachingModel {
+    static let note = CoachNote(headline: "Good run", howItWent: "You ran 9.5 km.", versusPlan: "As planned.", programStatus: "On track.", nextStep: "Rest.")
     var failures: [ModelChoice: LLMError] = [:]
     private(set) var calls: [ModelChoice] = []
 
     init(failures: [ModelChoice: LLMError] = [:]) { self.failures = failures }
 
-    func writeWorkoutNote(_ request: CoachNoteRequest, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
+    func writeWorkoutNote(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> CoachNoteResult {
         calls.append(model)
         if let error = failures[model] { throw error }
         return CoachNoteResult(
-            note: CoachNote(headline: "Good run", observation: "You ran 9.5 km.", nextStep: "Rest."),
+            note: Self.note,
             usage: LLMUsage(inputTokens: 300, outputTokens: 60, latencyMs: 1_000), promptText: "prompt", model: model
         )
     }
@@ -160,7 +161,7 @@ struct ModelRunnerTests {
 
     @Test func coachingFallsBackFromPrivateCloudToOnDevice() async throws {
         let inner = FakeCoaching(failures: [.privateCloud(reasoning: .moderate): .networkUnavailable])
-        let result = try await FallbackCoachingModel(primary: inner, fallback: inner).writeWorkoutNote(.sampleShortRun, model: .privateCloud(reasoning: .moderate), purpose: .labCoachNote)
+        let result = try await FallbackCoachingModel(primary: inner, fallback: inner).writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: .privateCloud(reasoning: .moderate), purpose: .labCoachNote)
         #expect(result.model == .onDevice)
         #expect(await inner.calls == [.privateCloud(reasoning: .moderate), .onDevice])
     }
@@ -168,7 +169,7 @@ struct ModelRunnerTests {
     @Test func coachingDoesNotFallBackOnCancel() async {
         let inner = FakeCoaching(failures: [.privateCloud(reasoning: .light): .cancelled])
         await #expect(throws: LLMError.cancelled) {
-            try await FallbackCoachingModel(primary: inner, fallback: inner).writeWorkoutNote(.sampleShortRun, model: .privateCloud(reasoning: .light), purpose: .labCoachNote)
+            try await FallbackCoachingModel(primary: inner, fallback: inner).writeWorkoutNote(WorkoutNoteFixture.samplePrompt, model: .privateCloud(reasoning: .light), purpose: .labCoachNote)
         }
     }
 
@@ -179,13 +180,15 @@ struct ModelRunnerTests {
         )
     }
 
-    @Test func coachNoteResultCarriesSoftFlags() async {
-        let result = await runner().run(.coachNote(.sampleShortRun), model: .onDevice)
-        #expect(result.output == .coachNote(CoachNote(headline: "Good run", observation: "You ran 9.5 km.", nextStep: "Rest.")))
-        #expect(result.softFlags == ["Numbers not in the facts: 9.5"])
-        #expect(result.validityText == "1 issue")
+    @Test func workoutNoteResultCarriesTheGuardIssues() async {
+        let result = await runner().run(.workoutNote(WorkoutNoteFixture.requestA), model: .onDevice)
+        #expect(result.output == .workoutNote(FakeCoaching.note))
+        #expect(result.softFlags == ["These numbers are not in the facts: 9.5.", "These km references do not fit the run: 9.5 km."])
+        #expect(result.guardText == "Guard: 2 issues")
+        #expect(result.factsLevel == 0)
+        #expect(result.estimatedTokens == AnalysisRules.estimatedTokens(characters: WorkoutNoteFixture.samplePrompt.fullText.count))
         #expect(result.usage?.latencyMs == 1_000)
-        #expect(result.experiment == "coachNote")
+        #expect(result.experiment == "workoutNote")
     }
 
     @Test func planDraftShowsATableAndViolationsWithoutRetrying() async throws {
@@ -205,12 +208,12 @@ struct ModelRunnerTests {
 
     @Test func unavailableModelsAreReportedAndSkipped() async {
         let lab = runner(unavailable: [.privateCloud(reasoning: .light): .notEnabledForBuild, .privateCloud(reasoning: .moderate): .notEnabledForBuild, .privateCloud(reasoning: .deep): .notEnabledForBuild])
-        let result = await lab.run(.coachNote(.sampleShortRun), model: .privateCloud(reasoning: .light))
+        let result = await lab.run(.workoutNote(WorkoutNoteFixture.requestA), model: .privateCloud(reasoning: .light))
         #expect(result.error == .unavailable(.notEnabledForBuild))
         #expect(result.validityText == nil)
-        #expect(result.promptText.contains("Facts:\nSession: Long run (Long run)"))
+        #expect(result.promptText.contains("Facts:\nSession: Tempo run (Tempo)"))
         #expect(await lab.availableModels(.apple) == [.onDevice])
-        let all = await lab.execute(.coachNote(.sampleShortRun), models: await lab.availableModels(.apple))
+        let all = await lab.execute(.workoutNote(WorkoutNoteFixture.requestA), models: await lab.availableModels(.apple))
         #expect(all.map(\.model) == [.onDevice])
     }
 
@@ -221,7 +224,7 @@ struct ModelRunnerTests {
     }
 }
 
-@Suite("Model error text and latest session facts")
+@Suite("Model error text")
 struct LLMErrorTextTests {
     private static let utc: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
@@ -243,17 +246,5 @@ struct LLMErrorTextTests {
         #expect(text.quotaLine(QuotaStatus(state: .belowLimit, resetDate: nil)) == "Below limit")
         #expect(text.quotaLine(QuotaStatus(state: .nearingLimit, resetDate: nil)) == "Nearing usage limit")
         #expect(text.quotaLine(QuotaStatus(state: .limitReached, resetDate: now.addingTimeInterval(3 * 3_600))) == "Limit reached, resets 12:00")
-    }
-
-    @Test func latestCompletedSessionFacts() throws {
-        let facts = try #require(BuildLatestSessionFacts().execute(
-            plan: CalendarPlanFixture.plan, runs: CalendarPlanFixture.runs, today: CalendarPlanFixture.today
-        ))
-        // 26 Oct: an easy run planned 6.0 km, done 6.2 km in 2046 s; week 3 of 8; 41 days to race.
-        #expect(facts.sessionName == "Easy run" && facts.plannedKm == 6 && facts.doneKm == 6.2)
-        #expect(facts.weekIndex == 3 && facts.weeksTotal == 8 && facts.phase == .base && facts.daysToRace == 41)
-        #expect(facts.paceSecPerKm == 330)
-        #expect(facts.sleep == nil && facts.hrv == nil && facts.restingHr == nil)
-        #expect(BuildLatestSessionFacts().execute(plan: CalendarPlanFixture.plan, runs: [], today: CalendarPlanFixture.today) == nil)
     }
 }

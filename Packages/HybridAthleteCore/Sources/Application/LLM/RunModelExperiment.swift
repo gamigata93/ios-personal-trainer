@@ -3,21 +3,22 @@ import Domain
 
 /// What the Model Lab asks a model to do.
 public enum ModelExperiment: Sendable, Equatable {
-    case coachNote(CoachNoteRequest)
+    /// The real note pipeline's facts for one completed session.
+    case workoutNote(WorkoutNoteRequest)
     case planDraft(PlanRequest)
 
-    /// "coachNote" or "planDraft".
+    /// "workoutNote" or "planDraft".
     public var name: String {
         switch self {
-        case .coachNote: "coachNote"
+        case .workoutNote: "workoutNote"
         case .planDraft: "planDraft"
         }
     }
 
-    /// The exact prompt (instructions and request) the model gets.
+    /// The prompt at full detail (a workout note may be compacted for a small context).
     public var prompt: Prompt {
         switch self {
-        case .coachNote(let request): CoachNotePromptBuilder.build(request)
+        case .workoutNote(let request): DetailedNotePromptBuilder.build(FactsBuilder.build(request))
         case .planDraft(let request): PlanPromptBuilder.build(request)
         }
     }
@@ -33,7 +34,7 @@ public struct PlanDraftTable: Sendable, Equatable {
 }
 
 public enum ExperimentOutput: Sendable, Equatable {
-    case coachNote(CoachNote)
+    case workoutNote(CoachNote)
     case planDraft(PlanDraftTable)
 }
 
@@ -46,10 +47,37 @@ public struct ExperimentResult: Sendable, Equatable {
     public let usage: LLMUsage?
     /// Rule problems (plan draft): shown, never retried in the Lab.
     public let violations: [String]
-    /// Soft problems (coach note): too long, numbers not in the facts.
+    /// The note guard's issues (workout note): any one would reject the note in the real flow.
     public let softFlags: [String]
     public let promptText: String
     public let error: LLMError?
+    /// Workout note only: the facts level (0-3) and the estimated prompt tokens.
+    public var factsLevel: Int?
+    public var estimatedTokens: Int?
+
+    public init(
+        experiment: String, model: ModelChoice, status: ModelStatus, output: ExperimentOutput?, usage: LLMUsage?,
+        violations: [String], softFlags: [String], promptText: String, error: LLMError?,
+        factsLevel: Int? = nil, estimatedTokens: Int? = nil
+    ) {
+        self.experiment = experiment
+        self.model = model
+        self.status = status
+        self.output = output
+        self.usage = usage
+        self.violations = violations
+        self.softFlags = softFlags
+        self.promptText = promptText
+        self.error = error
+        self.factsLevel = factsLevel
+        self.estimatedTokens = estimatedTokens
+    }
+
+    /// "Guard passed", "Guard: 2 issues"; nil without a note.
+    public var guardText: String? {
+        guard case .workoutNote = output else { return nil }
+        return softFlags.isEmpty ? "Guard passed" : "Guard: \(softFlags.count) \(softFlags.count == 1 ? "issue" : "issues")"
+    }
 
     /// "Valid", "1 issue", "3 issues"; nil when there is no output.
     public var validityText: String? {
@@ -106,24 +134,32 @@ public struct RunModelExperiment: Sendable {
 
     public func run(_ experiment: ModelExperiment, model: ModelChoice) async -> ExperimentResult {
         let status = await availability.status(for: model)
-        let promptText = experiment.prompt.fullText
+        // A workout note uses the facts level that fits this model, like the real flow.
+        var facts: WorkoutFacts?
+        if case .workoutNote(let request) = experiment {
+            facts = DetailedNotePromptBuilder.fittingFacts(request, contextSize: model == .onDevice ? status.contextSize : nil)
+        }
+        let promptText = facts.map { DetailedNotePromptBuilder.build($0).fullText } ?? experiment.prompt.fullText
+        let level = facts?.level
+        let tokens = facts.map(DetailedNotePromptBuilder.estimatedTokens)
         func failure(_ error: LLMError) -> ExperimentResult {
             ExperimentResult(
                 experiment: experiment.name, model: model, status: status, output: nil, usage: nil,
-                violations: [], softFlags: [], promptText: promptText, error: error
+                violations: [], softFlags: [], promptText: promptText, error: error, factsLevel: level, estimatedTokens: tokens
             )
         }
         guard status.availability.isAvailable else { return failure(.unavailable(status.availability)) }
 
         do {
             switch experiment {
-            case .coachNote(let request):
-                let result = try await coaching.writeWorkoutNote(request, model: model, purpose: .labCoachNote)
-                let facts = CoachNotePromptBuilder.factLines(request).joined(separator: "\n")
+            case .workoutNote(let request):
+                guard let facts else { return failure(.contextTooLarge) }
+                let result = try await coaching.writeWorkoutNote(DetailedNotePromptBuilder.build(facts), model: model, purpose: .labCoachNote)
+                let issues = DetailedNoteGuard.issues(result.note, facts: facts.text, runDistanceKm: request.review.doneKm)
                 return ExperimentResult(
-                    experiment: experiment.name, model: model, status: status, output: .coachNote(result.note), usage: result.usage,
-                    violations: [], softFlags: CoachNoteValidator.flags(result.note, facts: facts).map(\.message),
-                    promptText: result.promptText, error: nil
+                    experiment: experiment.name, model: model, status: status, output: .workoutNote(result.note), usage: result.usage,
+                    violations: [], softFlags: issues.map(\.message),
+                    promptText: result.promptText, error: nil, factsLevel: facts.level, estimatedTokens: tokens
                 )
             case .planDraft(let request):
                 let result = try await drafting.draftPlan(request, model: model, purpose: .labPlanDraft)
@@ -163,78 +199,6 @@ public struct RunModelExperiment: Sendable {
             return "Weekly km, model / template: " + pairs.joined(separator: ", ")
         }
         return PlanDraftTable(rows: rows, comparisonLine: comparison, draft: draft)
-    }
-}
-
-/// The facts for the newest session that a run completed, with last night's
-/// recovery when it is known. Summaries only.
-public struct BuildLatestSessionFacts: Sendable {
-    public init() {}
-
-    public func execute(
-        plan: TrainingPlan,
-        runs: [CompletedRun],
-        today: LocalDate,
-        sleepNights: [SleepNight] = [],
-        hrvNights: [HRVNight] = [],
-        restingDays: [RestingHRDay] = []
-    ) -> CoachNoteRequest? {
-        let progress = PlanProgress(plan: plan, runs: runs, today: today)
-        guard
-            let session = plan.sessions.filter({ $0.date <= today && progress.matches[$0.id] != nil }).max(by: { $0.date < $1.date }),
-            let run = progress.matches[session.id],
-            let week = plan.weeks.first(where: { $0.sessions.contains { $0.id == session.id } })
-        else { return nil }
-        return CoachNoteRequest(
-            sessionName: session.name,
-            sessionType: session.type,
-            status: progress.status(of: session),
-            plannedKm: session.distanceKm,
-            doneKm: run.distanceKm,
-            doneDurationSeconds: run.durationSeconds,
-            paceSecPerKm: run.distanceKm > 0 ? Int((run.durationSeconds / run.distanceKm).rounded()) : nil,
-            weekIndex: week.index,
-            weeksTotal: plan.weeks.count,
-            phase: week.phase,
-            daysToRace: max(0, session.date.days(to: plan.race.raceDate)),
-            sleep: sleepFact(sleepNights, today: today),
-            hrv: hrvFact(hrvNights, today: today),
-            restingHr: restingFact(restingDays, today: today)
-        )
-    }
-
-    private func sleepFact(_ nights: [SleepNight], today: LocalDate) -> SleepFact? {
-        guard case .shown(let night, _) = SleepSelection.select(nights: nights, today: today) else { return nil }
-        let comparison = SleepComparison.make(shown: night, nights: nights)
-        return SleepFact(
-            asleepMinutes: night.asleepMinutes,
-            deltaPercent: comparison?.deltaPercent,
-            nightsUsed: comparison?.nightsUsed ?? SleepRules.baselineNights
-        )
-    }
-
-    private func hrvFact(_ nights: [HRVNight], today: LocalDate) -> HRVFact? {
-        guard case .shown(let night, _) = RecentSelection.select(
-            nights, date: \.wakeDate, today: today, maxAgeDays: RecoveryRules.maxAgeDays, label: RecoveryLabel.night
-        ) else { return nil }
-        let previous = MetricComparison.previous(nights, date: \.wakeDate, before: night.wakeDate, days: RecoveryRules.baselineWindow)
-        let comparison = MetricComparison.make(
-            shown: night.meanMs, previous: previous.map(\.meanMs), mode: .percent,
-            neutralBand: RecoveryRules.hrvNeutralPercent, direction: .higherIsBetter, minValues: RecoveryRules.minBaselineValues
-        )
-        return HRVFact(valueMs: night.meanMs, deltaPercent: comparison?.delta, nightsUsed: comparison?.countUsed ?? RecoveryRules.baselineWindow)
-    }
-
-    private func restingFact(_ days: [RestingHRDay], today: LocalDate) -> RestingHRFact? {
-        guard case .shown(let day, _) = RecentSelection.select(
-            days, date: \.date, today: today, maxAgeDays: RecoveryRules.maxAgeDays, label: RecoveryLabel.day
-        ) else { return nil }
-        let previous = MetricComparison.previous(days, date: \.date, before: day.date, days: RecoveryRules.baselineWindow)
-        let comparison = MetricComparison.make(
-            shown: day.bpm, previous: previous.map(\.bpm), mode: .absolute,
-            neutralBand: RecoveryRules.restingHRNeutralBpm, direction: .lowerIsBetter, minValues: RecoveryRules.minBaselineValues
-        )
-        return RestingHRFact(bpm: day.bpm, deltaBpm: comparison?.delta, daysUsed: comparison?.countUsed ?? RecoveryRules.baselineWindow)
     }
 }
 

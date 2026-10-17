@@ -59,6 +59,18 @@ enum Theme {
         static let outcomeWorse = statusRed
         static let outcomeNeutral = mutedText
 
+        /// A completed session's icon, check badge and chip (periwinkle). Not a
+        /// rating color and not the accent: a rating will later recolor the icon only.
+        static let completed = Color(hex: 0x7C9CFF)
+        static let completedSoft = completed.opacity(0.15)
+        /// Workout breakdown: pace bars and the zone ramp (Z1 to Z5) in the completed
+        /// blue. Never rating colors.
+        static let splitBar = completed
+        static let zoneRamp: [Color] = [0.25, 0.4, 0.6, 0.8, 1.0].map { completed.opacity($0) }
+        static let zoneTrack = Color(hex: 0x23262B)
+        /// The neutral verdict chip: soft text on 13%.
+        static let verdictChip = softText
+
         /// Calendar: the dashed border of a not-recorded day.
         static let notRecordedBorder = Color(hex: 0x4A4F58)
         /// Calendar: today's cell fill.
@@ -95,6 +107,8 @@ enum Theme {
         static let tabItem: CGFloat = 24
         static let stageBar: CGFloat = 5
         static let calendarCell: CGFloat = 14
+        /// Calendar legend: the dashed not-recorded sample.
+        static let legendSample: CGFloat = 4
         static let squareButton: CGFloat = 16
         static let statTile: CGFloat = 20
         static let segmentCard: CGFloat = 22
@@ -202,6 +216,17 @@ enum Theme {
         static let segmentGap: CGFloat = 12
         static let segmentCards: CGFloat = 10
         static let notePadding: CGFloat = 18
+        // Workout breakdown and coach's note
+        static let coachNotePadding: CGFloat = 18
+        static let coachNoteGap: CGFloat = 12
+        static let coachSectionGap: CGFloat = 4
+        static let breakdownCardPadding: CGFloat = 18
+        static let breakdownRows: CGFloat = 12
+        static let splitBarGap: CGFloat = 4
+        static let zoneBarHeight: CGFloat = 8
+        static let blockStripHeight: CGFloat = 22
+        static let latestNotePadding: CGFloat = 18
+        static let latestNoteGap: CGFloat = 6
         // Plan edits
         static let actionRows: CGFloat = 8
         static let actionRowVertical: CGFloat = 12
@@ -229,6 +254,12 @@ enum Theme {
 
     enum Size {
         static let minTouchTarget: CGFloat = 44
+        /// Workout breakdown: the splits chart's bar area, the narrowest partial
+        /// bar's share, and the tiles' minimum width before they wrap.
+        static let splitsChartHeight: CGFloat = 120
+        static let tileMinWidth: CGFloat = 100
+        static let zoneNameWidth: CGFloat = 30
+        static let zoneMinutesWidth: CGFloat = 54
         /// The Lab's monthly spend bar.
         static let labCapBar: CGFloat = 6
         static let logoTile: CGFloat = 60
@@ -284,6 +315,15 @@ enum Theme {
         /// Session-type icons are drawn on a 16 x 16 grid with this stroke.
         static let iconGrid: CGFloat = 16
         static let iconStroke: CGFloat = 1.8
+        /// The completed check badge: on calendar cells, on week-strip icons, its
+        /// inset from the cell corner, and the check glyph inside (size and stroke at 10 pt).
+        static let checkBadge: CGFloat = 10
+        static let checkBadgeSmall: CGFloat = 8
+        static let checkBadgeInset: CGFloat = 2
+        /// The small badge sits just outside the icon's top-right corner, off the glyph.
+        static let checkBadgeOffset = CGSize(width: 7, height: -6)
+        static let checkGlyph: CGFloat = 6
+        static let checkGlyphStroke: CGFloat = 1.8
         static let iconDot: CGFloat = 1.4
         static let sleepIcon: CGFloat = 32
         static let sleepIconGlyph: CGFloat = 16
@@ -342,6 +382,7 @@ enum Theme {
             static let compactLine: CGFloat = 12
             static let compactLineWidth: CGFloat = 100
             static let compactShortLineWidth: CGFloat = 70
+            static let coachHeadline: CGFloat = 20
         }
     }
 
@@ -518,6 +559,7 @@ enum Theme {
         static let calendarDate = heading(13)
         static let calendarGlyph = Font.system(size: Size.calendarIcon, weight: .semibold)
         static let legendLabel = body(12)
+        static let legendCaption = body(12, weight: .bold)
 
         // Session detail
         static let detailCaption = body(13)
@@ -544,6 +586,33 @@ enum Theme {
         static let noteCaption = body(12, weight: .bold)
         static let noteText = body(15)
         static let noteLineSpacing: CGFloat = 15 * 0.55
+        // Workout breakdown and coach's note
+        static let coachCaption = body(12, weight: .bold)
+        static let coachHeadline = heading(17)
+        static let coachSectionLabel = body(12, weight: .bold)
+        static let coachBody = body(15)
+        /// Line height 1.5 at 15 pt.
+        static let coachBodyLineSpacing: CGFloat = 15 * 0.5
+        static let coachNextLabel = body(13, weight: .bold)
+        static let coachNext = body(14)
+        static let coachFooter = body(12)
+        static let coachButton = body(15, weight: .semibold)
+        static let verdictChip = body(11, weight: .bold)
+        static let tileDetail = body(12)
+        static let breakdownTitle = heading(18)
+        static let splitPace = body(11, weight: .semibold)
+        static let splitHr = body(10)
+        static let splitIndex = body(11)
+        static let blockStripLabel = body(10, weight: .semibold)
+        static let zoneName = body(13, weight: .semibold)
+        static let zoneMinutes = body(13)
+        static let blockLabel = body(14, weight: .bold)
+        static let blockMeta = body(13)
+        static let breakdownFootnote = body(12)
+        static let latestCaption = body(12)
+        static let latestHeadline = heading(16)
+        static let latestSummary = body(14)
+        static let latestFooter = body(12)
         // Plan edits
         static let actionLabel = body(14, weight: .bold)
         static let actionHint = body(12)

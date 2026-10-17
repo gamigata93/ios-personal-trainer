@@ -44,7 +44,12 @@ struct HomeView: View {
                             if let upNext = overview.upNext {
                                 UpNextCard(upNext: upNext) { onOpenSession(upNext.sessionID) }
                             }
+                            if let latest = viewModel.latestNote {
+                                LatestCoachNoteCardView(card: latest) { onOpenSession(latest.sessionId) }
+                            }
                         }
+                    } else if let latest = viewModel.latestNote {
+                        LatestCoachNoteCardView(card: latest) { onOpenSession(latest.sessionId) }
                     }
                     RecoverySection(recovery: overview.recovery) {
                         Task { await viewModel.retryRecovery() }
@@ -125,6 +130,9 @@ struct HomeView: View {
         }
         if let json = viewModel.recoveryJSON {
             Button("Copy recovery JSON", systemImage: "waveform.path.ecg") { Clipboard.copy(json) }
+        }
+        Button("Copy coach note facts", systemImage: "list.bullet.rectangle") {
+            Task { if let facts = await viewModel.coachNoteFacts() { Clipboard.copy(facts) } }
         }
         if let makeLab = viewModel.makeModelLab {
             Button("Model Lab", systemImage: "cpu") { modelLab = makeLab() }
@@ -335,7 +343,19 @@ private struct DayPill: View {
                 .font(Theme.Typography.dayGlyph)
                 .foregroundStyle(day.isSelected ? Theme.Palette.onAccent : Theme.Palette.accent)
         } else if let type = day.sessionType, let status = day.status {
-            SessionTypeIcon(type: type, size: Theme.Size.dayIcon, color: day.isSelected ? Theme.Palette.onAccent : status.iconColor, isStruck: status.isStruck)
+            let look = SessionStatusPresentation.presentation(status)
+            // The selected pill is accent-filled: a dark icon, and a dark badge with an accent check.
+            SessionTypeIcon(type: type, size: Theme.Size.dayIcon, color: day.isSelected ? Theme.Palette.onAccent : look.iconColor, isStruck: look.iconDecoration == .strike)
+                .overlay(alignment: .topTrailing) {
+                    if look.showsCheckBadge {
+                        CheckBadge(
+                            size: Theme.Size.checkBadgeSmall,
+                            fill: day.isSelected ? Theme.Palette.onAccent : Theme.Palette.completed,
+                            check: day.isSelected ? Theme.Palette.accent : Theme.Palette.onAccent
+                        )
+                        .offset(x: Theme.Size.checkBadgeOffset.width, y: Theme.Size.checkBadgeOffset.height)
+                    }
+                }
         } else {
             Color.clear
         }
@@ -390,6 +410,56 @@ private struct UpNextCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens the session")
         .accessibilityIdentifier("upNextCard")
+    }
+}
+
+// MARK: - Latest coach note
+
+/// The newest completed session's note: headline, how it went (2 lines) and the
+/// session. Tapping opens that session.
+private struct LatestCoachNoteCardView: View {
+    let card: LatestCoachNoteCard
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.latestNoteGap) {
+                Text("Latest coach note")
+                    .font(Theme.Typography.latestCaption)
+                    .foregroundStyle(Theme.Palette.mutedText)
+                Text(card.headline)
+                    .font(Theme.Typography.latestHeadline)
+                    .foregroundStyle(Theme.Palette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(card.summary)
+                    .font(Theme.Typography.latestSummary)
+                    .foregroundStyle(Theme.Palette.softText)
+                    .lineLimit(2)
+                HStack(spacing: Theme.Spacing.tight) {
+                    Text(card.footer)
+                        .font(Theme.Typography.latestFooter)
+                        .foregroundStyle(Theme.Palette.mutedText)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(Theme.Typography.arrowGlyph)
+                        .foregroundStyle(Theme.Palette.mutedText)
+                        .accessibilityHidden(true)
+                }
+            }
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Theme.Spacing.latestNotePadding)
+            .background(Theme.Palette.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                    .strokeBorder(Theme.Palette.cardBorder, lineWidth: Theme.Size.borderWidth)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the session")
+        .accessibilityIdentifier("latestCoachNote")
     }
 }
 

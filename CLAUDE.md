@@ -34,6 +34,9 @@ writes (read-only); Android; push notifications (the morning check shows on app 
   type so the richer one can be kept.
 - Request every needed read type up front: workouts, workout routes, heart rate,
   resting heart rate, VO2 max, sleep, HRV, plus date of birth and biological sex.
+  HealthReadSet (Infrastructure) is the single list: also active energy, walking/running distance,
+  step count (cadence is derived from it), running power, workout effort score and estimated
+  workout effort score. Adding a type makes existing installs see Connect Health once more.
 - Read permission is hidden by design: an empty result can mean no data OR no
   access. Model three outcomes: available, locked (retry after unlock), and
   empty-or-not-allowed. Never crash on any of them. Show "data as of <time>".
@@ -125,7 +128,16 @@ Main app (floating tab bar: Home, Calendar):
 - Session detail (built, read-only; a missed session reads "Marked as missed"): type and status chips, week and phase, distance, est. time
   and effort tiles, the matched run (distance, time, pace, delta vs plan) or, when not recorded,
   the 60% rule in plain words ("We look for a run of at least 3.0 km on the same day."),
-  the structure and the session's note. No coach note, elevation profile or "adjusted" card yet.
+  the structure and the session's note. No elevation profile or "adjusted" card yet.
+- Completed sessions (Session detail): a neutral verdict chip (On track, Worth watching, Off plan), result
+  tiles (distance, moving time, avg pace, avg HR with zone, elevation, cadence), the "Coach's note" card
+  (How it went, Versus the plan, The program, Next; "Written by ..." and the fallback reason), the splits
+  chart (bars by speed, planned blocks under it), heart-rate zones (blue ramp, target bracketed), plan vs
+  actual per planned block, and a data footnote. Sections without data are hidden. Notes compare blocks and
+  report program status. Home shows a "Latest coach note" card under Up next.
+- Coach notes are written automatically only while the app is open, for completed sessions of the last
+  7 days, at most 3 per refresh (newest first), and on opening such a session; older sessions get a
+  "Write coach note" button. One generation at a time. Locked Health waits for the next refresh.
 - Navigation: two tabs (Home, Calendar) in one NavigationStack. Session detail is pushed over
   either tab from the day card's arrow or Home's Up next card, and the tab bar is hidden there.
 - ActivePlanStore and CompletedRunsStore are the single shared state for plan and completion.
@@ -137,7 +149,8 @@ Main app (floating tab bar: Home, Calendar):
 - Statuses now: completed, missed (the user's acknowledgement, stored as a flag), not
   recorded (a past session with no matching run), today, upcoming. Precedence: completed >
   missed > notRecorded > today > upcoming (a missed session that later gets a matching run is
-  completed). Ratings (green, amber, red) come later, so completed is drawn neutral until then.
+  completed). Ratings (green, amber, red) come later; completed is drawn in #7C9CFF with a check badge, and a
+  rating will later recolor only the icon.
 - Completion: a run on the same local day covering at least 60% of the planned
   distance (PlanProgressRules.matchShare, exactly 60% counts) completes the session;
   the longest candidate wins, a run matches one session at most, and runs on days
@@ -181,6 +194,19 @@ Main app (floating tab bar: Home, Calendar):
   PR detection, plan match, fit labels. The LLM only reasons over compact summaries
   and writes text or a structured plan.
 - Never send raw routes or trackpoints to the LLM. Pass missing data as explicit unknown.
+- Raw route points and sample series never leave Infrastructure and are never stored or sent. Only
+  derived analysis (splits, laps, zone histogram, totals) is cached and used in prompts.
+- Code decides assessment (distance check, effort check with heart-rate reserve zones, verdict, recovery
+  context). Code produces Findings and assessments. The LLM only writes the note from them. The note is
+  checked by DetailedNoteGuard (lengths, numbers, paces, km marks, zones), retried once with the issues,
+  otherwise a rule-based note (TemplateDetailedNoteWriter) is stored. Coach notes live in GRDB (coach_note),
+  analyses in workout_analysis. Constants: AssessmentRules and AnalysisRules.
+- Tempo, threshold and intervals are not effort-assessed as a whole: each planned block gets a target from
+  EffortTargetTable; threshold and intervals blocks (and any block with reps) are "mixed", not assessed.
+  Verdict chips stay neutral until the rating slice.
+- The coach notes' model: Automatic (Private Cloud Compute, then on-device, then the rules) unless the
+  DEBUG Lab's "Use for coach notes" picked one. Claude goes through the same SpendGate and ledger
+  (purpose workoutNote).
 - Validate LLM plan output against domain rules before saving (training days only
   on chosen weekdays, nothing after race day). Retry once, then show an error.
 - Norm tables live in the bundled Norms.json behind NormRepository. Every table carries
@@ -205,12 +231,19 @@ Main app (floating tab bar: Home, Calendar):
   the generator for Race setup -> Generating; -planFallback adds the template behind a model; -fakeLLM
   <ok|invalidPlan|unavailable|quota|slow|anthropicOk|noKey|badKey|credits|rateLimited> gives canned model
   answers (with an in-memory ledger, settings and secret store, never the database or Keychain); -planDelay <seconds> delays the template (absent or 0: no delay).
+  -fakeWorkoutDetail <tempo|easyDrift|noHr|paused|laps> gives canned workout detail (no HealthKit);
+  -fakeCoachNote <ok|slow|fail|rules> canned notes (fail throws once, rules forces the rule-based note);
+  -fakeHeartRateHigh makes easy runs average 153 bpm; -coachModel <auto|template|onDevice|pcc.light|...|
+  anthropic.haiku55|...> overrides the notes' model. With fake Health and neither -fakeCoachNote nor
+  -coachModel, the rules write the notes. The fakes use the profile max 182, resting 49.
+  The Home ladybug menu also has "Copy coach note facts"; Session detail's note menu has "Copy facts",
+  "Show facts", "Copy analysis JSON" and "Copy note JSON".
 - The snapshot cache holds summaries only (never raw routes, workout lists or the date
   of birth). Reference data and user data stay separate.
 - The raw JSON view exists only in DEBUG builds.
 - Every generator's output must pass PlanValidator before it is saved.
-- Database = GRDB (v7). It holds the plan and the plan edit log (trainer.sqlite in Application
-  Support). Caches (runs, sleep, recovery, snapshot) stay JSON files. A plan in the old
+- Database = GRDB (v7). It holds the plan, the plan edit log, the usage ledger, coach notes
+  (v3_coach_note) and workout analyses (v4_workout_analysis) (trainer.sqlite in Application Support). Caches (runs, sleep, recovery, snapshot) stay JSON files. A plan in the old
   TrainingPlan.json is imported once at launch and the file is renamed, never deleted.
 - The API key lives only in the Keychain (SecretStore). Never in source, Info.plist, logs,
   analytics or any copied JSON. The ledger stores token counts and costs, never prompts or outputs.
@@ -324,6 +357,9 @@ Keep every value in one Theme file, never inline in views.
   accent at about 15%, 7% and 33% opacity.
 - Status colors, used only for ratings and deltas: green #5BE08C, amber #FFC640,
   red #FF6B5E. Never use the accent for a rating.
+- completed = #7C9CFF with a check badge. Green, amber and red remain reserved for ratings and
+  deltas. The accent lime means today and selection. Session status looks come from
+  SessionStatusPresentation only.
 - Type: Sora (600/700) for headings and big numbers, DM Sans for body. Both are
   open-licensed; bundle the font files and register them in the Info.plist
   (check the license files when bundling).
