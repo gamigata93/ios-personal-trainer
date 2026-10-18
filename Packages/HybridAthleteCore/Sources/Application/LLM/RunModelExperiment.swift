@@ -54,11 +54,13 @@ public struct ExperimentResult: Sendable, Equatable {
     /// Workout note only: the facts level (0-3) and the estimated prompt tokens.
     public var factsLevel: Int?
     public var estimatedTokens: Int?
+    /// Workout note only: the analysis's flatSeries diagnostic ("Flat data" chip).
+    public var flatSeries: Bool?
 
     public init(
         experiment: String, model: ModelChoice, status: ModelStatus, output: ExperimentOutput?, usage: LLMUsage?,
         violations: [String], softFlags: [String], promptText: String, error: LLMError?,
-        factsLevel: Int? = nil, estimatedTokens: Int? = nil
+        factsLevel: Int? = nil, estimatedTokens: Int? = nil, flatSeries: Bool? = nil
     ) {
         self.experiment = experiment
         self.model = model
@@ -71,6 +73,7 @@ public struct ExperimentResult: Sendable, Equatable {
         self.error = error
         self.factsLevel = factsLevel
         self.estimatedTokens = estimatedTokens
+        self.flatSeries = flatSeries
     }
 
     /// "Guard passed", "Guard: 2 issues"; nil without a note.
@@ -159,7 +162,8 @@ public struct RunModelExperiment: Sendable {
                 return ExperimentResult(
                     experiment: experiment.name, model: model, status: status, output: .workoutNote(result.note), usage: result.usage,
                     violations: [], softFlags: issues.map(\.message),
-                    promptText: result.promptText, error: nil, factsLevel: facts.level, estimatedTokens: tokens
+                    promptText: result.promptText, error: nil, factsLevel: facts.level, estimatedTokens: tokens,
+                    flatSeries: request.review.analysis.flatSeries
                 )
             case .planDraft(let request):
                 let result = try await drafting.draftPlan(request, model: model, purpose: .labPlanDraft)

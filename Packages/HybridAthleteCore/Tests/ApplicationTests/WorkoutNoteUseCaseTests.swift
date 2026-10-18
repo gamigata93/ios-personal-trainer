@@ -208,7 +208,7 @@ struct CoachNoteChainTests {
         let prompts = await harness.coaching.prompts
         #expect(prompts.count == 2)
         #expect(!prompts[0].text.contains("Fix these problems"))
-        #expect(prompts[1].text.contains("\n\nFix these problems:\nThese numbers are not in the facts: 9.5."))
+        #expect(prompts[1].text.contains("\n\nFix these problems:\nnumber 9.5 is not in the facts"))
         #expect(await harness.coaching.purposes == [.workoutNote, .workoutNote])
     }
 
@@ -389,10 +389,12 @@ struct AnalyzeWorkoutTests {
         // 6 of 7 due sessions done (21 Oct has no run); week 3: 26 Oct 6.2 km of 6.0 + 6.5 + 10.0.
         #expect(program.completedCount == 6 && program.dueCount == 7 && program.adherencePercent == 86)
         #expect(program.weekIndex == 3 && program.kmPlannedThisWeek == 22.5 && abs(program.kmDoneThisWeek - 6.2) < 1e-9)
-        #expect(program.recent.map(\.date) == [WorkoutNoteFixture.day(10, 26), WorkoutNoteFixture.day(10, 23), WorkoutNoteFixture.day(10, 19)])
-        // 23 Oct: 7.0 of 10.0 km, distance only: off plan.
-        #expect(program.recent[1].verdict == .offPlan)
-        #expect(program.next?.date == WorkoutNoteFixture.day(10, 30))
+        // The note describes the 12 Oct run: nothing after it is a recent session.
+        #expect(program.recent.map(\.date) == [WorkoutNoteFixture.day(10, 12)])
+        #expect(program.recent.first?.verdict == .onTrack)
+        // Today's (Wed 28 Oct) session is not done yet, so it is next.
+        #expect(program.next?.date == WorkoutNoteFixture.day(10, 28) && program.next?.daysAway == 0)
+        #expect(prepared.facts.program.last == "Next: today (Wed 28 Oct) Easy run 6.5 km.")
     }
 }
 

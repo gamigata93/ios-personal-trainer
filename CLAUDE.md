@@ -199,7 +199,9 @@ Main app (floating tab bar: Home, Calendar):
 - Code decides assessment (distance check, effort check with heart-rate reserve zones, verdict, recovery
   context). Code produces Findings and assessments. The LLM only writes the note from them. The note is
   checked by DetailedNoteGuard (lengths, numbers, paces, km marks, zones), retried once with the issues,
-  otherwise a rule-based note (TemplateDetailedNoteWriter) is stored. Coach notes live in GRDB (coach_note),
+  otherwise a rule-based note (TemplateDetailedNoteWriter) is stored. Km marks and zones in a note must appear in the facts
+  that were sent (ranges allowed, decimals allowed, 0 allowed). Distances are checked as numbers, not as marks. Next is the
+  next unfinished session on or after today. Recent sessions never include sessions after the described run. Coach notes live in GRDB (coach_note),
   analyses in workout_analysis. Constants: AssessmentRules and AnalysisRules.
 - Tempo, threshold and intervals are not effort-assessed as a whole: each planned block gets a target from
   EffortTargetTable; threshold and intervals blocks (and any block with reps) are "mixed", not assessed.
@@ -231,7 +233,9 @@ Main app (floating tab bar: Home, Calendar):
   the generator for Race setup -> Generating; -planFallback adds the template behind a model; -fakeLLM
   <ok|invalidPlan|unavailable|quota|slow|anthropicOk|noKey|badKey|credits|rateLimited> gives canned model
   answers (with an in-memory ledger, settings and secret store, never the database or Keychain); -planDelay <seconds> delays the template (absent or 0: no delay).
-  -fakeWorkoutDetail <tempo|easyDrift|noHr|paused|laps> gives canned workout detail (no HealthKit);
+  -fakeWorkoutDetail <tempo|easyDrift|noHr|paused|laps|flat|tempoVaried> gives canned workout detail (no HealthKit;
+  flat is 5.7 km of identical 6:00 /km, 158 bpm splits, tempoVaried is the tempo; the Lab's workout note shows a "Flat data"
+  chip when WorkoutAnalysis.flatSeries is true, a diagnostic that never changes a note);
   -fakeCoachNote <ok|slow|fail|rules> canned notes (fail throws once, rules forces the rule-based note);
   -fakeHeartRateHigh makes easy runs average 153 bpm; -coachModel <auto|template|onDevice|pcc.light|...|
   anthropic.haiku55|...> overrides the notes' model. With fake Health and neither -fakeCoachNote nor

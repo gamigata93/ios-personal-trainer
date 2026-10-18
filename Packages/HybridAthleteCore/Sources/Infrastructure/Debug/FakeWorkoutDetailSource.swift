@@ -16,6 +16,11 @@ public enum FakeWorkoutDetailScenario: String, Sendable, CaseIterable {
     case paused
     /// The tempo with five lap events, one per km.
     case laps
+    /// A 5.7 km tempo where every split is 6:00 /km at 158 bpm (max 172), the
+    /// last one 0.7 km: reproduces flat data (flatSeries).
+    case flat
+    /// The tempo (scenario A) under a name that pairs with `flat`.
+    case tempoVaried
 }
 
 /// The fake profile behind every DEBUG fake: max 182, resting 49.
@@ -82,6 +87,8 @@ public struct FakeWorkoutDetailSource: WorkoutDetailSource {
         Leg(km: 1, pace: 400, avgHr: 142, maxHr: 156, gain: 1, loss: 3),
     ]
 
+    static let flatLegs: [Leg] = [1, 1, 1, 1, 1, 0.7].map { Leg(km: $0, pace: 360, avgHr: 158, maxHr: 172, gain: 0, loss: 0) }
+
     static let easyDriftLegs: [Leg] = zip(
         [360.0, 361, 362, 364, 366, 369, 372, 376],
         zip([132.0, 134, 136, 138, 141, 144, 147, 150], [138.0, 140, 142, 145, 148, 151, 154, 158])
@@ -89,11 +96,12 @@ public struct FakeWorkoutDetailSource: WorkoutDetailSource {
 
     static func series(_ scenario: FakeWorkoutDetailScenario, runId: String, start: Date) -> WorkoutDetailSeries {
         switch scenario {
-        case .tempo: build(tempoLegs, runId: runId, start: start, hasRoute: true, hasHr: true)
+        case .tempo, .tempoVaried: build(tempoLegs, runId: runId, start: start, hasRoute: true, hasHr: true)
         case .easyDrift: build(easyDriftLegs, runId: runId, start: start, hasRoute: false, hasHr: true)
         case .noHr: build(tempoLegs, runId: runId, start: start, hasRoute: true, hasHr: false)
         case .paused: build(tempoLegs, runId: runId, start: start, hasRoute: true, hasHr: true, pauses: [(500, 60), (1_200, 35)])
         case .laps: build(tempoLegs, runId: runId, start: start, hasRoute: true, hasHr: true, lapEvents: true)
+        case .flat: build(flatLegs, runId: runId, start: start, hasRoute: true, hasHr: true)
         }
     }
 

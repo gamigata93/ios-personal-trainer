@@ -141,6 +141,41 @@ struct FakeWorkoutDetailTests {
         #expect(HeartRateDrift.measure(drift, type: .easy)?.band == .high)
     }
 
+    @Test func flatAndTempoVaried() throws {
+        func analyze(_ scenario: FakeWorkoutDetailScenario) -> WorkoutAnalysis {
+            WorkoutAnalyzer.analyze(FakeWorkoutDetailSource.series(scenario, runId: "r", start: .distantPast), computedAt: .distantPast)
+        }
+        let flat = analyze(.flat)
+        #expect(flat.splits.count == 6 && abs(flat.totals.distanceKm - 5.7) < 1e-6)
+        #expect(flat.splits.allSatisfy { Int($0.paceSecPerKm.rounded()) == 360 && Int(($0.avgHr ?? 0).rounded()) == 158 })
+        #expect(flat.maxHr == 172)
+        #expect(flat.flatSeries)
+        #expect(!analyze(.tempoVaried).flatSeries)
+        #expect(analyze(.tempoVaried) == analyze(.tempo))
+
+        // The diagnostic never reaches findings, verdicts, facts or the stored analysis.
+        let session = PlannedSession(
+            date: LocalDate(year: 2026, month: 10, day: 12), type: .tempo, name: "Tempo run", distanceKm: 6.0, estimatedMinutes: 36,
+            effort: "Comfortably hard",
+            segments: [
+                Segment(label: "Warm-up", detail: "Easy jog", distanceKm: 1.5),
+                Segment(label: "Tempo", detail: "3 km continuous, comfortably hard", distanceKm: 3.0),
+                Segment(label: "Cool-down", detail: "Easy jog", distanceKm: 1.5),
+            ],
+            note: nil
+        )
+        let run = CompletedRun(id: "r", localDate: session.date, distanceKm: 5.7, durationSeconds: flat.totals.movingSeconds)
+        let review = WorkoutReview(session: session, run: run, analysis: flat, profile: FakeHeartRateProfile.profile)
+        #expect(!Findings.make(review).contains { $0.text.lowercased().contains("flat") })
+        let stored = String(decoding: try JSONEncoder().encode(flat), as: UTF8.self)
+        #expect(!stored.contains("flatSeries"))
+        let debug = try #require(WorkoutNoteDebugJSON.analysis(flat))
+        #expect(debug.contains("\"flatSeries\" : true"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        #expect(try decoder.decode(WorkoutAnalysis.self, from: Data(debug.utf8)) == flat)
+    }
+
     @Test func withoutAScenarioEachRunGetsAnEvenEffort() async throws {
         let plan = SeedPlan.plan(createdAt: .distantPast)
         let run = RunSummary(id: "fake-2026-10-14", startDate: .distantPast, distanceMeters: 4_275, durationSeconds: 1_539, averageHeartRate: 139, maxHeartRate: 158)

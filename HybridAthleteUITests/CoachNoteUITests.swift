@@ -129,6 +129,24 @@ final class CoachNoteUITests: XCTestCase {
         keepScreenshot(of: app, named: "Model Lab - workout note")
     }
 
+    @MainActor
+    func testTheLabMarksFlatData() throws {
+        for (detail, expectsChip) in [("tempoVaried", false), ("flat", true)] {
+            let app = launch(detail: detail, note: "ok", tab: "home")
+            let debugMenu = app.buttons["home.debugMenu"]
+            XCTAssertTrue(debugMenu.waitForExistence(timeout: 10))
+            debugMenu.tap()
+            app.buttons["Model Lab"].tap()
+            let run = app.buttons["modelLabRun"]
+            XCTAssertTrue(run.waitForExistence(timeout: 10))
+            run.tap()
+            XCTAssertTrue(element(app, "modelLabFactsLevel-1").waitForExistence(timeout: 15), detail)
+            XCTAssertEqual(element(app, "modelLabFlatData-1").exists, expectsChip, detail)
+            if expectsChip { keepScreenshot(of: app, named: "Model Lab - flat data") }
+            app.terminate()
+        }
+    }
+
     // MARK: Helpers
 
     @MainActor

@@ -52,6 +52,8 @@ public enum AnalysisRules {
     public static let charactersPerToken = 3
     /// Recent sessions listed in the facts.
     public static let recentSessionsInFacts = 3
+    /// Splits with an identical pace and heart rate that mark a flat series (diagnostic).
+    public static let flatSeriesMinSplits = 4
     /// A split counts as a full kilometre from this distance on.
     public static let fullSplitKm = 0.999
     /// A partial last split shorter than this is dropped.

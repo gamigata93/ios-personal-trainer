@@ -58,13 +58,13 @@ public struct BuildWorkoutNoteRequest: Sendable {
         let today = today
         let profile = await profile()
         let review = WorkoutReview(session: session, run: run, analysis: analysis, profile: profile)
-        let verdicts = await recentVerdicts(plan: plan, runs: runs, today: today, profile: profile, current: review)
+        let verdicts = await recentVerdicts(plan: plan, runs: runs, today: today, runDate: run.localDate, profile: profile, current: review)
         let nights = await sleep.load()?.nights ?? []
         let cachedRecovery = await recovery.load()
         return WorkoutNoteRequest(
             review: review,
             planSource: plan.generatedBy,
-            program: ProgramStatus.make(plan: plan, runs: runs, verdicts: verdicts, today: today),
+            program: ProgramStatus.make(plan: plan, runs: runs, verdicts: verdicts, today: today, runDate: run.localDate),
             recovery: RecoveryContext.facts(
                 runDate: run.localDate,
                 sleepNights: nights,
@@ -76,11 +76,11 @@ public struct BuildWorkoutNoteRequest: Sendable {
 
     /// Verdicts for the recent completed sessions that have a cached analysis.
     private func recentVerdicts(
-        plan: TrainingPlan, runs: [CompletedRun], today: LocalDate, profile: HeartRateProfile?, current: WorkoutReview
+        plan: TrainingPlan, runs: [CompletedRun], today: LocalDate, runDate: LocalDate, profile: HeartRateProfile?, current: WorkoutReview
     ) async -> [String: WorkoutVerdict] {
         let progress = PlanProgress(plan: plan, runs: runs, today: today)
         let recent = plan.sessions
-            .filter { $0.date <= today && progress.matches[$0.id] != nil }
+            .filter { $0.date <= runDate && progress.matches[$0.id] != nil }
             .sorted { $0.date > $1.date }
             .prefix(AnalysisRules.recentSessionsInFacts)
         var verdicts: [String: WorkoutVerdict] = [current.session.id: current.verdict]

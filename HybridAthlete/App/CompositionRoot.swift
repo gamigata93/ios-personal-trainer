@@ -635,7 +635,7 @@ enum CompositionRoot {
     /// - `-fakeLLM <ok|invalidPlan|unavailable|quota|slow|anthropicOk|noKey|badKey|credits|rateLimited>`: canned model
     ///   answers (no FoundationModels, no network), with an in-memory ledger, settings and secret store.
     /// - `-planDelay <seconds>`: the template waits this long first (0 or absent: no wait).
-    /// - `-fakeWorkoutDetail <tempo|easyDrift|noHr|paused|laps>`: canned workout detail for every run (no HealthKit).
+    /// - `-fakeWorkoutDetail <tempo|easyDrift|noHr|paused|laps|flat|tempoVaried>`: canned workout detail for every run (no HealthKit).
     /// - `-fakeCoachNote <ok|slow|fail|rules>`: canned coach notes (fail throws once; rules forces the rule-based note).
     /// - `-fakeHeartRateHigh`: easy runs average 153 bpm instead of 139.
     /// - `-coachModel <auto|template|onDevice|pcc.light|pcc.moderate|pcc.deep|anthropic.haiku55|...>`: the coach notes'

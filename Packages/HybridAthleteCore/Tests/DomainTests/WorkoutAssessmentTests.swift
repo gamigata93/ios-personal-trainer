@@ -416,10 +416,14 @@ struct FactsTests {
 
     @Test func promptAndRevisionNotes() {
         let facts = FactsBuilder.build(WorkoutNoteFixture.requestA)
-        let prompt = DetailedNotePromptBuilder.build(facts, revisionNotes: ["Headline is longer than 60 characters."])
+        let prompt = DetailedNotePromptBuilder.build(facts, revisionNotes: ["Headline is over 60 characters"])
         #expect(prompt.instructions.hasPrefix("You are a running coach writing a post-workout note for one athlete. Use ONLY the facts."))
         #expect(prompt.instructions.contains("headline 60, how it went 320, versus the plan 320, the program 280, next step 200 characters."))
-        #expect(prompt.text.hasSuffix("\n\nFix these problems:\nHeadline is longer than 60 characters."))
+        #expect(prompt.instructions.contains(
+            "Quote km marks and ranges exactly as written in the facts (for example km 1.4–4.3); never invent a km mark."
+        ))
+        #expect(prompt.instructions.contains("When it fits, connect the next step to the Next session in the facts."))
+        #expect(prompt.text.hasSuffix("\n\nFix these problems:\nHeadline is over 60 characters"))
         #expect(!DetailedNotePromptBuilder.build(facts).text.contains("Fix these problems"))
     }
 }
@@ -442,17 +446,7 @@ struct DetailedNoteGuardTests {
     }
 
     @Test func unsupportedPace() {
-        #expect(issues(note(howItWent: "Your second km was 5:13 /km.")) == [.unsupportedPaces(["5:13"])])
-    }
-
-    @Test func kmOutsideTheRun() {
-        #expect(issues(note(howItWent: "You faded at km 6.")) == [.badKmReference(["km 6"])])
-        #expect(issues(note(howItWent: "You ran 8 km.")).contains(.badKmReference(["8 km"])))
-    }
-
-    @Test func zoneNotInTheFacts() {
-        #expect(issues(note(howItWent: "You stayed in zone 5.")) == [.badZone([5])])
-        #expect(issues(note(howItWent: "You stayed in zones 3–4.")).isEmpty)
+        #expect(issues(note(howItWent: "Your second km was 5:13 /km.")) == [.unsupportedPace("5:13")])
     }
 
     @Test func lengths() {

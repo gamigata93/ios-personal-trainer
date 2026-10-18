@@ -189,4 +189,16 @@ public struct WorkoutAnalysis: Sendable, Equatable, Codable {
 
     /// Full kilometres only (drift, split style and fade use these).
     public var fullSplits: [Split] { splits.filter(\.isFull) }
+
+    /// A diagnostic only (DEBUG JSON and the Lab): at least 4 splits share the
+    /// exact pace (to the second) and the exact rounded average heart rate, which
+    /// suggests flat or synthetic data. Never used in findings, verdicts or notes.
+    public var flatSeries: Bool {
+        var counts: [[Int]: Int] = [:]
+        for split in splits {
+            guard let hr = split.avgHr else { continue }
+            counts[[AnalysisMath.rounded(split.paceSecPerKm), AnalysisMath.rounded(hr)], default: 0] += 1
+        }
+        return counts.values.contains { $0 >= AnalysisRules.flatSeriesMinSplits }
+    }
 }

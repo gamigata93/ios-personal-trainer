@@ -22,11 +22,14 @@ public struct ProgramStatus: Sendable, Equatable {
         public let date: LocalDate
         public let name: String
         public let km: Double
+        /// Days from the note's today: 0 is today, 1 tomorrow.
+        public let daysAway: Int
 
-        public init(date: LocalDate, name: String, km: Double) {
+        public init(date: LocalDate, name: String, km: Double, daysAway: Int) {
             self.date = date
             self.name = name
             self.km = km
+            self.daysAway = daysAway
         }
     }
 
@@ -65,15 +68,16 @@ public struct ProgramStatus: Sendable, Equatable {
     }
 
     /// `verdicts` holds what is known per session id (from stored analyses);
-    /// a completed session without one gets a distance-only verdict.
+    /// a completed session without one gets a distance-only verdict. Recent
+    /// sessions are dated on or before `runDate` (the described run), never after.
     public static func make(
-        plan: TrainingPlan, runs: [CompletedRun], verdicts: [String: WorkoutVerdict], today: LocalDate
+        plan: TrainingPlan, runs: [CompletedRun], verdicts: [String: WorkoutVerdict], today: LocalDate, runDate: LocalDate
     ) -> ProgramStatus {
         let progress = PlanProgress(plan: plan, runs: runs, today: today)
         let week = progress.currentWeekIndex.flatMap { index in plan.weeks.first { $0.index == index } }
         let done = week?.sessions.compactMap { progress.matches[$0.id]?.distanceKm }.reduce(0, +) ?? 0
         let recent = plan.sessions
-            .filter { $0.date <= today && progress.matches[$0.id] != nil }
+            .filter { $0.date <= runDate && progress.matches[$0.id] != nil }
             .sorted { $0.date > $1.date }
             .prefix(AnalysisRules.recentSessionsInFacts)
             .compactMap { session -> RecentSession? in
@@ -90,9 +94,17 @@ public struct ProgramStatus: Sendable, Equatable {
             kmDoneThisWeek: done,
             kmPlannedThisWeek: week?.totalKm ?? 0,
             recent: Array(recent),
-            next: progress.nextSession(after: today).map { NextSession(date: $0.date, name: $0.name, km: $0.distanceKm) },
+            next: nextSession(progress).map { NextSession(date: $0.date, name: $0.name, km: $0.distanceKm, daysAway: today.days(to: $0.date)) },
             phase: week?.phase,
             daysToRace: progress.daysToRace
         )
+    }
+
+    /// The first session on or after today (by its current date) that is still
+    /// today or upcoming: not completed, not missed.
+    static func nextSession(_ progress: PlanProgress) -> PlannedSession? {
+        progress.plan.sessions
+            .filter { $0.date >= progress.today && [.today, .upcoming].contains(progress.status(of: $0)) }
+            .min { $0.date < $1.date }
     }
 }

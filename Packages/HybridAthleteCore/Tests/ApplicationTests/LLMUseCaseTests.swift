@@ -183,8 +183,8 @@ struct ModelRunnerTests {
     @Test func workoutNoteResultCarriesTheGuardIssues() async {
         let result = await runner().run(.workoutNote(WorkoutNoteFixture.requestA), model: .onDevice)
         #expect(result.output == .workoutNote(FakeCoaching.note))
-        #expect(result.softFlags == ["These numbers are not in the facts: 9.5.", "These km references do not fit the run: 9.5 km."])
-        #expect(result.guardText == "Guard: 2 issues")
+        #expect(result.softFlags == ["number 9.5 is not in the facts"])
+        #expect(result.guardText == "Guard: 1 issue")
         #expect(result.factsLevel == 0)
         #expect(result.estimatedTokens == AnalysisRules.estimatedTokens(characters: WorkoutNoteFixture.samplePrompt.fullText.count))
         #expect(result.usage?.latencyMs == 1_000)

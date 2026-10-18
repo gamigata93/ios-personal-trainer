@@ -370,6 +370,10 @@ private struct ResultCard: View {
                 if let guardText = result.guardText {
                     LabFilledChip(text: guardText, tone: result.softFlags.isEmpty ? .accent : .warning)
                 }
+                if result.flatSeries == true {
+                    LabOutlineChip(text: "Flat data")
+                        .accessibilityIdentifier("modelLabFlatData-\(card.id)")
+                }
             }
             if let line = result.usage?.line, !line.isEmpty {
                 Text(line).font(Theme.Typography.labMeta).foregroundStyle(Theme.Palette.mutedText)

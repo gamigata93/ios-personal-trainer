@@ -155,7 +155,12 @@ public enum FactsBuilder {
             }.joined(separator: " · "))
         }
         if let next = program.next {
-            lines.append("Next: \(WorkoutFormat.day(next.date)) \(next.name) \(SessionFormat.distanceText(km: next.km)).")
+            let rest = "\(next.name) \(SessionFormat.distanceText(km: next.km))."
+            switch next.daysAway {
+            case 0: lines.append("Next: today (\(WorkoutFormat.day(next.date))) \(rest)")
+            case 1: lines.append("Next: tomorrow (\(WorkoutFormat.day(next.date))) \(rest)")
+            default: lines.append("Next: \(WorkoutFormat.day(next.date)) \(rest)")
+            }
         }
         return lines.count > 1 ? lines : []
     }
@@ -167,7 +172,8 @@ public enum DetailedNotePromptBuilder {
         You are a running coach writing a post-workout note for one athlete. Use ONLY the facts. \
         Copy numbers, paces and km marks exactly as written; never invent or round them. Write four short parts: \
         how it went, versus the plan, the program, and one next step. Compare the actual blocks with the planned \
-        blocks using the block findings. Plain text, second person, no emoji, no markdown, no medical advice. \
+        blocks using the block findings. Quote km marks and ranges exactly as written in the facts (for example km 1.4–4.3); \
+        never invent a km mark. When it fits, connect the next step to the Next session in the facts. Plain text, second person, no emoji, no markdown, no medical advice. \
         If the facts say effort was not assessed or data is missing, say so. Mention at most one recovery fact. \
         Respect the limits: headline 60, how it went 320, versus the plan 320, the program 280, next step 200 characters.
         """
@@ -201,19 +207,19 @@ public enum DetailedNotePromptBuilder {
 public enum DetailedNoteGuard {
     public enum Issue: Sendable, Equatable {
         case tooLong(field: String, limit: Int)
-        case unsupportedNumbers([String])
-        case unsupportedPaces([String])
-        case badKmReference([String])
-        case badZone([Int])
+        case unsupportedNumber(String)
+        case unsupportedPace(String)
+        case badKmReference(String)
+        case badZone(String)
 
-        /// The revision note sent back to the model.
+        /// The revision note sent back to the model, one line.
         public var message: String {
             switch self {
-            case .tooLong(let field, let limit): "\(field) is longer than \(limit) characters."
-            case .unsupportedNumbers(let numbers): "These numbers are not in the facts: \(numbers.joined(separator: ", "))."
-            case .unsupportedPaces(let paces): "These paces or times are not in the facts: \(paces.joined(separator: ", "))."
-            case .badKmReference(let marks): "These km references do not fit the run: \(marks.joined(separator: ", "))."
-            case .badZone(let zones): "These zones are not in the facts: \(zones.map { "zone \($0)" }.joined(separator: ", "))."
+            case .tooLong(let field, let limit): "\(field) is over \(limit) characters"
+            case .unsupportedNumber(let token): "number \(token) is not in the facts"
+            case .unsupportedPace(let token): "pace \(token) is not in the facts"
+            case .badKmReference(let token): "km mark \(token) is not in the facts"
+            case .badZone(let token): "zone \(token) is not in the facts"
             }
         }
     }
@@ -221,6 +227,7 @@ public enum DetailedNoteGuard {
     /// A note number matches a fact number within this.
     public static let numberTolerance = 0.05
 
+    /// `facts` is the facts text that was actually sent (its compaction level).
     public static func issues(_ note: CoachNote, facts: String, runDistanceKm: Double) -> [Issue] {
         var issues: [Issue] = []
         let limits: [(String, String, Int)] = [
@@ -234,25 +241,22 @@ public enum DetailedNoteGuard {
             issues.append(.tooLong(field: field, limit: limit))
         }
         let text = note.parts.joined(separator: "\n")
-        let numbers = unsupportedNumbers(in: text, facts: facts)
-        if !numbers.isEmpty { issues.append(.unsupportedNumbers(numbers)) }
-        let paces = unsupportedPaces(in: text, facts: facts)
-        if !paces.isEmpty { issues.append(.unsupportedPaces(paces)) }
-        let marks = badKmReferences(in: text, facts: facts, runDistanceKm: runDistanceKm)
-        if !marks.isEmpty { issues.append(.badKmReference(marks)) }
-        let zones = badZones(in: text, facts: facts)
-        if !zones.isEmpty { issues.append(.badZone(zones)) }
+        issues += unsupportedNumbers(in: text, facts: facts).map(Issue.unsupportedNumber)
+        issues += unsupportedPaces(in: text, facts: facts).map(Issue.unsupportedPace)
+        issues += badKmReferences(in: text, facts: facts, runDistanceKm: runDistanceKm).map(Issue.badKmReference)
+        issues += badZones(in: text, facts: facts).map(Issue.badZone)
         return issues
     }
 
-    /// Digit groups with an optional decimal that are not within ±0.05 of a
-    /// number in the facts, in order, without repeats.
+    /// Numbers (digit groups with an optional decimal) outside km and zone
+    /// references that are not within ±0.05 of a number in the facts, in order,
+    /// without repeats. Km and zone references have their own rules.
     public static func unsupportedNumbers(in text: String, facts: String) -> [String] {
         let known = numbers(in: facts).compactMap(Double.init)
         var seen: Set<String> = []
-        return numbers(in: text).filter { token in
+        return numbers(in: withoutReferences(text)).filter { token in
             guard let value = Double(token) else { return false }
-            let supported = known.contains { abs($0 - value) <= numberTolerance + 1e-9 }
+            let supported = known.contains { close($0, value) }
             return !supported && seen.insert(token).inserted
         }
     }
@@ -264,33 +268,72 @@ public enum DetailedNoteGuard {
         return times(in: text).filter { !known.contains($0) && seen.insert($0).inserted }
     }
 
-    /// "km N" / "kilometre N" outside 1...ceil(distance) (0 only as the start of
-    /// a range, "km 0–1"), and "X km" values larger than the run that the facts
-    /// do not hold as a km value.
+    /// Km references ("km 6", "km 1.4–4.3", "kilometres 2-4") whose numbers are
+    /// not all marks in the facts (every number the same pattern finds there,
+    /// plus 0 and the run distance), that run past the run, or whose range is
+    /// not increasing. "{n} km" distances are not marks.
     public static func badKmReferences(in text: String, facts: String, runDistanceKm: Double) -> [String] {
-        let maxMark = Int((runDistanceKm - 1e-9).rounded(.up))
-        var bad: [String] = []
-        for match in text.matches(of: /(?i)\b(?:km|kilometre|kilometer)\s+(\d+)(\s*[–-])?/) {
-            guard let mark = Int(match.output.1) else { continue }
-            let isRangeStart = match.output.2 != nil
-            let lowest = isRangeStart ? 0 : 1
-            if mark < lowest || mark > maxMark { bad.append(String(match.output.0).trimmingCharacters(in: .whitespaces)) }
-        }
-        let factKm = kmValues(in: facts)
-        for value in kmValues(in: text) where value > runDistanceKm + numberTolerance {
-            if !factKm.contains(where: { abs($0 - value) <= numberTolerance + 1e-9 }) {
-                bad.append("\(HomeFormat.km(value)) km")
-            }
-        }
+        let marks = kmMarks(facts: facts, runDistanceKm: runDistanceKm)
+        // The partial last split is labeled by its whole km ("km 6" of 5.7 km).
+        let limit = max(runDistanceKm + numberTolerance, (runDistanceKm - 1e-9).rounded(.up))
         var seen: Set<String> = []
-        return bad.filter { seen.insert($0).inserted }
+        return references(kmPattern, in: text).filter { reference in
+            let valid = reference.values.allSatisfy { value in value <= limit + 1e-9 && marks.contains { close($0, value) } }
+                && reference.isIncreasing
+            return !valid && seen.insert(reference.token).inserted
+        }.map(\.token)
     }
 
-    /// "zone N" (and "zones A–B", "ZN") in the note whose number is not a zone in the facts.
-    public static func badZones(in text: String, facts: String) -> [Int] {
-        let known = zones(in: facts)
-        var seen: Set<Int> = []
-        return zones(in: text).filter { !known.contains($0) && seen.insert($0).inserted }
+    /// Zone references ("zone 4", "zones 3–4") with a number the facts never
+    /// mention after "zone"/"zones" (each end of a range counts), or a range
+    /// that is not increasing.
+    public static func badZones(in text: String, facts: String) -> [String] {
+        let known = Set(references(zonePattern, in: facts).flatMap(\.values))
+        var seen: Set<String> = []
+        return references(zonePattern, in: text).filter { reference in
+            let valid = reference.values.allSatisfy(known.contains) && reference.isIncreasing
+            return !valid && seen.insert(reference.token).inserted
+        }.map(\.token)
+    }
+
+    /// The allowed km marks K.
+    static func kmMarks(facts: String, runDistanceKm: Double) -> [Double] {
+        references(kmPattern, in: facts).flatMap(\.values) + [0, runDistanceKm]
+    }
+
+    // MARK: Parsing
+
+    /// A km or zone reference: its text as written and its one or two numbers.
+    struct Reference {
+        let token: String
+        let values: [Double]
+        var isIncreasing: Bool { values.count < 2 || values[0] < values[1] }
+    }
+
+    /// "km" or "kilometre(s)/kilometer(s)" (any case), spaces or tabs, then a
+    /// number or a range; en dash, em dash and hyphen are the same.
+    nonisolated(unsafe) static let kmPattern =
+        /(?i)\b(?:km|kilomet(?:re|er)s?)[ \t]+(\d+(?:\.\d+)?)(?:[ \t]*[–—-][ \t]*(\d+(?:\.\d+)?))?/
+    /// "zone" or "zones" (any case), then a whole number or a range.
+    nonisolated(unsafe) static let zonePattern =
+        /(?i)\bzones?[ \t]+(\d+(?:\.\d+)?)(?:[ \t]*[–—-][ \t]*(\d+(?:\.\d+)?))?/
+
+    static func references(
+        _ pattern: Regex<(Substring, Substring, Substring?)>, in text: String
+    ) -> [Reference] {
+        text.matches(of: pattern).map { match in
+            let values = [Double(match.output.1)] + [match.output.2.flatMap { Double($0) }]
+            return Reference(token: String(match.output.0), values: values.compactMap { $0 })
+        }
+    }
+
+    /// The text with km and zone references blanked out.
+    static func withoutReferences(_ text: String) -> String {
+        text.replacing(kmPattern, with: " ").replacing(zonePattern, with: " ")
+    }
+
+    static func close(_ a: Double, _ b: Double) -> Bool {
+        abs(a - b) <= numberTolerance + 1e-9
     }
 
     static func numbers(in text: String) -> [String] {
@@ -299,25 +342,6 @@ public enum DetailedNoteGuard {
 
     static func times(in text: String) -> [String] {
         text.matches(of: /\b\d{1,2}:\d{2}(?::\d{2})?\b/).map { String($0.output) }
-    }
-
-    static func kmValues(in text: String) -> [Double] {
-        text.matches(of: /(\d+(?:\.\d+)?)\s*km\b/).compactMap { Double($0.output.1) }
-    }
-
-    static func zones(in text: String) -> [Int] {
-        var result: [Int] = []
-        for match in text.matches(of: /(?i)\bzones?\s+(\d)(?:\s*[–-]\s*(\d))?|\bZ(\d)\b/) {
-            if let low = match.output.1.flatMap({ Int($0) }) {
-                if let high = match.output.2.flatMap({ Int($0) }), high >= low {
-                    result += Array(low...high)
-                } else {
-                    result.append(low)
-                }
-            }
-            if let short = match.output.3.flatMap({ Int($0) }) { result.append(short) }
-        }
-        return result
     }
 }
 
@@ -469,7 +493,7 @@ extension WorkoutNoteRequest {
                     ProgramStatus.RecentSession(date: day(23), name: "Long run", plannedKm: 10, doneKm: 7, verdict: .offPlan),
                     ProgramStatus.RecentSession(date: day(19), name: "Tempo run", plannedKm: 5.5, doneKm: 5.5, verdict: .onTrack),
                 ],
-                next: ProgramStatus.NextSession(date: day(30), name: "Long run", km: 10),
+                next: ProgramStatus.NextSession(date: day(30), name: "Long run", km: 10, daysAway: 2),
                 phase: .base, daysToRace: 39
             ),
             recovery: RecoveryFacts(hrv: HRVFact(valueMs: 58, deltaPercent: -6))

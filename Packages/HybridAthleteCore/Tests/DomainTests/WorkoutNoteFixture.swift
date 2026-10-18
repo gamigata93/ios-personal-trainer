@@ -80,7 +80,7 @@ enum WorkoutNoteFixture {
             ProgramStatus.RecentSession(date: day(10, 23), name: "Long run", plannedKm: 10.0, doneKm: 7.0, verdict: .offPlan),
             ProgramStatus.RecentSession(date: day(10, 19), name: "Tempo run", plannedKm: 5.5, doneKm: 5.5, verdict: .onTrack),
         ],
-        next: ProgramStatus.NextSession(date: day(10, 30), name: "Long run", km: 10.0),
+        next: ProgramStatus.NextSession(date: day(10, 30), name: "Long run", km: 10.0, daysAway: 2),
         phase: .base,
         daysToRace: 39
     )
