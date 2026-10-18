@@ -17,6 +17,10 @@ final class MainScreens {
     let calendar: CalendarViewModel
     /// The shared coach notes; nil in tests that do not need them.
     let notes: CoachNoteStore?
+    /// The after-workout popup and suggestions; nil in tests that do not need them.
+    var feedback: FeedbackStore?
+    /// Builds the strength detail for a strength session id.
+    var makeStrengthDetail: (@MainActor (String) -> StrengthDetailViewModel)?
     /// DEBUG `-startTab`; Home otherwise.
     let startTab: Tab
     private let makeSessionDetailViewModel: @MainActor (String) -> SessionDetailViewModel

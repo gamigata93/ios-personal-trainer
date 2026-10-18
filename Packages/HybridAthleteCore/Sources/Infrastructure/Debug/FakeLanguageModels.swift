@@ -210,7 +210,7 @@ public actor FakeCoachNoteModel: CoachingModel {
         headline: "Steady and controlled",
         howItWent: "You ran 5.0 km at 5:43 /km and every block landed in its heart rate zone.",
         versusPlan: "Warm-up 6:30 /km, tempo 5:09 /km at HR 163 bpm, cool-down 6:40 /km, as planned.",
-        programStatus: "Plan adherence is 86% (6 of 7 sessions).",
+        programStatus: "Plan adherence is 89% (8 of 9 sessions).",
         nextStep: "Keep the next easy run just as relaxed."
     )
 
@@ -233,6 +233,56 @@ public actor FakeCoachNoteModel: CoachingModel {
         let record = await meter?.record(model: model, purpose: purpose, usage: tokens, latencyMs: 900, error: nil)
         return CoachNoteResult(
             note: Self.note, usage: LLMUsage(tokens, latencyMs: 900, costMicros: record?.costMicros), promptText: prompt.fullText, model: model
+        )
+    }
+}
+#endif
+
+#if DEBUG
+/// `-fakeAdjust <scenario>`: canned suggested changes. DEBUG builds only.
+public enum FakeAdjustScenario: String, Sendable, CaseIterable {
+    /// Every run in the window becomes an easy run 1 km shorter (at least 2 km),
+    /// strength stays; reason "Fake: easier days while it settles."
+    case ok
+    /// Every attempt throws, so the rules write the suggestion.
+    case fail
+}
+
+/// The canned adjuster behind `-fakeAdjust`. It reads the window from the
+/// prompt's "Days you may change" line and the sessions from the active plan.
+public struct FakePlanAdjuster: PlanAdjustingModel {
+    public static let reason = "Fake: easier days while it settles."
+
+    private let scenario: FakeAdjustScenario
+    private let activePlan: @Sendable () async -> TrainingPlan?
+    private let meter: LLMCallMeter?
+
+    public init(scenario: FakeAdjustScenario, activePlan: @escaping @Sendable () async -> TrainingPlan?, meter: LLMCallMeter? = nil) {
+        self.scenario = scenario
+        self.activePlan = activePlan
+        self.meter = meter
+    }
+
+    public func adjustPlan(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> AdjustmentDraftResult {
+        guard scenario == .ok else { throw LLMError.unavailable(.notReady) }
+        guard
+            let line = prompt.facts.first(where: { $0.hasPrefix("Days you may change: ") }),
+            let plan = await activePlan()
+        else { throw LLMError.malformedOutput("No window.") }
+        let dates = line.matches(of: /\d{4}-\d{2}-\d{2}/).compactMap { LocalDate(String($0.output)) }
+        guard dates.count == 2 else { throw LLMError.malformedOutput("No window.") }
+        let window = AdjustmentWindow(start: dates[0], end: dates[1])
+        let runs = plan.sessions.filter { window.contains($0.date) }.map {
+            AdjustmentDraft.Run(date: $0.date, type: .easy, distanceKm: max(2, $0.distanceKm - 1))
+        }
+        let strength = plan.strengthSessions.filter { window.contains($0.date) }.map {
+            AdjustmentDraft.Strength(date: $0.date, focus: $0.focus, minutes: $0.minutes)
+        }
+        let tokens = TokenUsage(uncachedInput: AnalysisRules.estimatedTokens(characters: prompt.fullText.count), output: 300)
+        let record = await meter?.record(model: model, purpose: purpose, usage: tokens, latencyMs: 800, error: nil)
+        return AdjustmentDraftResult(
+            draft: AdjustmentDraft(runs: runs, strength: strength, reason: Self.reason),
+            usage: LLMUsage(tokens, latencyMs: 800, costMicros: record?.costMicros), promptText: prompt.fullText
         )
     }
 }

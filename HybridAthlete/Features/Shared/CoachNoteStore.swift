@@ -41,6 +41,9 @@ final class CoachNoteStore {
     private let prepare: PrepareWorkoutNote
     private let loadNotes: LoadCoachNotes
     private let today: @MainActor () -> LocalDate
+    /// A workout whose after-workout popup is still open or queued: its note waits,
+    /// so the feedback can be in the facts. Nil: nothing waits.
+    var isAwaitingFeedback: (@MainActor (String) -> Bool)?
 
     init(
         plans: ActivePlanStore,
@@ -115,6 +118,7 @@ final class CoachNoteStore {
         return plan.sessions
             .filter { $0.date <= today && $0.date >= earliest && progress.matches[$0.id] != nil }
             .filter { notes[$0.id] == nil && transient[$0.id] != .failed && transient[$0.id] != .generating }
+            .filter { session in !(progress.matches[session.id].map { isAwaitingFeedback?($0.id) ?? false } ?? false) }
             .sorted { $0.date > $1.date }
             .prefix(AssessmentRules.maxAutoPerRefresh)
             .map(\.id)
@@ -149,7 +153,7 @@ final class CoachNoteStore {
 
     private func analyze(_ sessionId: String, plan: TrainingPlan) async {
         if let current = prepared[sessionId], current.run.id == matchedRun(sessionId)?.id { return }
-        switch try? await prepare.execute(plan: plan, runs: runs.result.runs, sessionId: sessionId) {
+        switch try? await prepare.execute(plan: plan, runs: runs.result.runs, strength: runs.result.strength, sessionId: sessionId) {
         case .ready(let ready):
             prepared[sessionId] = ready
             analysisWaiting.remove(sessionId)
@@ -194,7 +198,7 @@ final class CoachNoteStore {
             return
         }
         do {
-            switch try await generate.execute(plan: plan, runs: runs.result.runs, sessionId: sessionId, force: force) {
+            switch try await generate.execute(plan: plan, runs: runs.result.runs, strength: runs.result.strength, sessionId: sessionId, force: force) {
             case .note(let note):
                 notes[sessionId] = note
                 transient[sessionId] = nil
@@ -213,7 +217,7 @@ final class CoachNoteStore {
 
     /// The analysis is cached now, so this never reads Health.
     private func refreshPrepared(_ sessionId: String, plan: TrainingPlan) async {
-        if case .ready(let ready) = try? await prepare.execute(plan: plan, runs: runs.result.runs, sessionId: sessionId, cachedOnly: true) {
+        if case .ready(let ready) = try? await prepare.execute(plan: plan, runs: runs.result.runs, strength: runs.result.strength, sessionId: sessionId, cachedOnly: true) {
             prepared[sessionId] = ready
         }
     }

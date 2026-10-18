@@ -45,6 +45,8 @@ public struct CalendarMonthOverview: Sendable, Equatable {
         public let status: SessionStatus?
         public let isRaceDay: Bool
         public let kind: CalendarCell.Kind
+        /// Set when the day has a strength session (a badge, or the icon on a day without a run).
+        public let strengthStatus: SessionStatus?
         /// Nil when not moving or swapping.
         public let editRole: EditRole?
         /// "Wednesday 28 October, Easy run, today", or for a target "Thursday 29
@@ -65,6 +67,8 @@ public struct CalendarMonthOverview: Sendable, Equatable {
     public let selectedDate: LocalDate?
     /// The card for the selected day.
     public let dayCard: DayCard?
+    /// The selected day's strength session, under the day card (not while editing).
+    public let strengthCard: StrengthCard?
     /// "Your phone is locked. Showing progress from today 07:40." Only when locked.
     public let lockedLine: String?
     /// The selected day's session id, when it has one.
@@ -105,7 +109,9 @@ public struct GetCalendarMonth: Sendable {
         let today = today
         let source = mode.flatMap { plan.session(id: $0.sessionId) }
         let targets = mode.map { targetDates($0, plan: plan, runs: runs.runs, today: today) } ?? []
-        let shown = CalendarMonthBuilder.month(CalendarRange.clamp(month, to: plan), plan: plan, runs: runs.runs, today: today)
+        let shown = CalendarMonthBuilder.month(
+            CalendarRange.clamp(month, to: plan), plan: plan, runs: runs.runs, strength: runs.strength, today: today
+        )
         let selection = selected.flatMap { shown.cell(on: $0)?.isSelectable == true ? $0 : nil }
             ?? CalendarMonthBuilder.defaultSelection(in: shown, plan: plan, today: today)
         let raceTitle = HomeFormat.raceTitle(distanceKm: plan.race.distanceKm)
@@ -127,6 +133,7 @@ public struct GetCalendarMonth: Sendable {
                     status: cell.status,
                     isRaceDay: cell.isRaceDay && cell.isSelectable,
                     kind: cell.kind,
+                    strengthStatus: cell.strengthStatus,
                     editRole: role(of: cell, source: source, targets: targets, isEditing: mode != nil),
                     accessibilityLabel: accessibilityLabel(cell, mode: mode, source: source, targets: targets)
                 )
@@ -145,6 +152,9 @@ public struct GetCalendarMonth: Sendable {
             } ?? selection.flatMap { date in
                 shown.cell(on: date).map { DayCard.make(session: $0.session, status: $0.status, isRaceDay: $0.isRaceDay, raceTitle: raceTitle) }
             },
+            strengthCard: mode == nil
+                ? selection.flatMap { date in shown.cell(on: date).flatMap { StrengthCard.make($0.strength, status: $0.strengthStatus) } }
+                : nil,
             lockedLine: ProgressLockedLine.text(runs: runs, now: clock.now(), calendar: calendar),
             selectedSessionId: selectedSession?.id,
             actions: mode == nil

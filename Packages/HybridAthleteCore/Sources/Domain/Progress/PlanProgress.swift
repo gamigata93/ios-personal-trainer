@@ -17,15 +17,22 @@ public struct PlanProgress: Sendable, Equatable {
     public let today: LocalDate
     /// Session id -> the run that completed it.
     public let matches: [String: CompletedRun]
+    /// Strength session id -> the strength workout that completed it.
+    public let strengthMatches: [String: CompletedStrength]
 
-    public init(plan: TrainingPlan, runs: [CompletedRun], today: LocalDate) {
+    public init(plan: TrainingPlan, runs: [CompletedRun], strength: [CompletedStrength] = [], today: LocalDate) {
         self.plan = plan
         self.today = today
         self.matches = SessionCompletionMatcher.match(sessions: plan.sessions, runs: runs)
+        self.strengthMatches = StrengthCompletionMatcher.match(sessions: plan.strengthSessions, workouts: strength)
     }
 
     public func status(of session: PlannedSession) -> SessionStatus {
         SessionStatus.of(date: session.date, isMatched: matches[session.id] != nil, isMissed: session.isMissed, today: today)
+    }
+
+    public func status(of session: StrengthSession) -> SessionStatus {
+        SessionStatus.of(date: session.date, isMatched: strengthMatches[session.id] != nil, isMissed: session.isMissed, today: today)
     }
 
     /// The 1-based plan week holding today; nil before the start or after race day.
@@ -50,13 +57,16 @@ public struct PlanProgress: Sendable, Equatable {
 
     /// Sessions before today, plus today's when it is already completed or
     /// marked missed. A missed session is due and not completed.
+    /// Strength sessions count the same way.
     public var dueCount: Int {
         plan.sessions.filter { $0.date < today || ($0.date == today && (matches[$0.id] != nil || $0.isMissed)) }.count
+            + plan.strengthSessions.filter { $0.date < today || ($0.date == today && (strengthMatches[$0.id] != nil || $0.isMissed)) }.count
     }
 
-    /// Due sessions that were completed.
+    /// Due sessions (runs and strength) that were completed.
     public var completedCount: Int {
         plan.sessions.filter { $0.date <= today && matches[$0.id] != nil }.count
+            + plan.strengthSessions.filter { $0.date <= today && strengthMatches[$0.id] != nil }.count
     }
 
     /// completed / due, or nil while nothing is due yet.

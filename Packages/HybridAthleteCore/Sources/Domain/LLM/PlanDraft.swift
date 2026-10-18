@@ -15,11 +15,14 @@ public struct DraftWeek: Sendable, Equatable, Codable {
     public let index: Int
     public let phase: PlanPhase
     public let sessions: [DraftSession]
+    /// The model decides how many (0 to `StrengthRules.maxPerWeek`).
+    public let strength: [DraftStrength]
 
-    public init(index: Int, phase: PlanPhase, sessions: [DraftSession]) {
+    public init(index: Int, phase: PlanPhase, sessions: [DraftSession], strength: [DraftStrength] = []) {
         self.index = index
         self.phase = phase
         self.sessions = sessions
+        self.strength = strength
     }
 
     public var totalKm: Double { sessions.map(\.distanceKm).reduce(0, +) }
@@ -37,6 +40,19 @@ public struct DraftSession: Sendable, Equatable, Codable {
     }
 }
 
+/// One strength session as a model drafts it: code fills the exercises.
+public struct DraftStrength: Sendable, Equatable, Codable {
+    public let weekday: Weekday
+    public let focus: StrengthFocus
+    public let minutes: Int
+
+    public init(weekday: Weekday, focus: StrengthFocus, minutes: Int) {
+        self.weekday = weekday
+        self.focus = focus
+        self.minutes = minutes
+    }
+}
+
 /// Why a draft cannot be expanded. Messages double as revision notes.
 public enum DraftViolation: Sendable, Equatable {
     case wrongWeekCount(expected: Int, got: Int)
@@ -47,6 +63,10 @@ public enum DraftViolation: Sendable, Equatable {
     case phaseOrder(week: Int)
     case lastWeekNotTaper
     case noSessions
+    case tooManyStrength(week: Int)
+    case duplicateStrengthDay(week: Int, weekday: Weekday)
+    case strengthMinutes(week: Int)
+    case strengthPlacement(week: Int, weekday: Weekday, StrengthPlacement.Problem)
 
     public var message: String {
         switch self {
@@ -58,6 +78,12 @@ public enum DraftViolation: Sendable, Equatable {
         case .phaseOrder(let week): "Week \(week) goes back to an earlier phase (the order is base, build, peak, taper)."
         case .lastWeekNotTaper: "The last week must be a taper week."
         case .noSessions: "The plan has no sessions."
+        case .tooManyStrength(let week): "Week \(week) has more than \(StrengthRules.maxPerWeek) strength sessions."
+        case .duplicateStrengthDay(let week, let weekday): "Week \(week) has two strength sessions on \(weekday.name)."
+        case .strengthMinutes(let week):
+            "Week \(week) has a strength session outside \(StrengthRules.minutesRange.lowerBound) to \(StrengthRules.minutesRange.upperBound) minutes."
+        case .strengthPlacement(let week, let weekday, let problem):
+            "Week \(week) has strength on \(weekday.name), \(problem.reason)."
         }
     }
 }
@@ -96,7 +122,50 @@ public enum PlanDraftValidator {
         if draft.weeks.allSatisfy({ $0.sessions.isEmpty }) {
             violations.append(.noSessions)
         }
+        violations += strengthViolations(draft, request: request)
         return violations
+    }
+
+    /// Strength count, minutes, one a day, and placement against the drafted runs.
+    static func strengthViolations(_ draft: PlanDraft, request: PlanRequest) -> [DraftViolation] {
+        var violations: [DraftViolation] = []
+        let start = request.planStart
+        var runs: [LocalDate: SessionType] = [:]
+        for week in draft.weeks {
+            let weekStart = start.adding(days: 7 * (week.index - 1))
+            for session in week.sessions { runs[weekStart.adding(days: session.weekday.index)] = session.type }
+        }
+        for week in draft.weeks {
+            if week.strength.count > StrengthRules.maxPerWeek { violations.append(.tooManyStrength(week: week.index)) }
+            var seen: Set<Weekday> = []
+            let weekStart = start.adding(days: 7 * (week.index - 1))
+            for item in week.strength {
+                if !seen.insert(item.weekday).inserted {
+                    violations.append(.duplicateStrengthDay(week: week.index, weekday: item.weekday))
+                }
+                if !StrengthRules.minutesRange.contains(item.minutes) { violations.append(.strengthMinutes(week: week.index)) }
+                let problems = StrengthPlacement.problems(
+                    date: weekStart.adding(days: item.weekday.index), runs: runs, trainingDays: request.race.trainingDays,
+                    raceDate: request.race.raceDate, planStart: start
+                )
+                violations += problems.map { .strengthPlacement(week: week.index, weekday: item.weekday, $0) }
+            }
+        }
+        return violations
+    }
+}
+
+extension StrengthPlacement.Problem {
+    /// "which is not a training day".
+    public var reason: String {
+        switch self {
+        case .notATrainingDay: "which is not a training day"
+        case .onHardRunDay: "the same day as a tempo, threshold, interval or long run"
+        case .dayBeforeLongRun: "the day before a long run"
+        case .inRaceWeek: "in race week"
+        case .outsideWindow: "outside the plan (from the start to 2 days before race day)"
+        case .twoOnOneDay: "where there is already a strength session"
+        }
     }
 }
 
@@ -124,7 +193,17 @@ public enum PlanDraftExpander {
                         avgPaceSecPerKm: request.fitness.avgPaceSecPerKm
                     )
                 }
-            return PlanWeek(index: week.index, startDate: weekStart, phase: week.phase, targetKm: week.totalKm, sessions: sessions)
+            return PlanWeek(index: week.index, startDate: weekStart, phase: week.phase, targetKm: week.totalKm, sessions: sessions, strength: [])
+        }
+        let drafted = zip(draft.weeks, weeks).flatMap { draftWeek, week in
+            draftWeek.strength.map { (date: week.startDate.adding(days: $0.weekday.index), item: $0, phase: week.phase) }
+        }
+        let variants = StrengthContentBuilder.variants(for: drafted.map { ($0.date, $0.item.focus) })
+        let strength = drafted.map { entry in
+            StrengthContentBuilder.session(
+                date: entry.date, focus: entry.item.focus, minutes: entry.item.minutes, phase: entry.phase,
+                variant: variants[entry.date] ?? .a
+            )
         }
         return TrainingPlan(
             id: "",
@@ -134,6 +213,6 @@ public enum PlanDraftExpander {
             race: request.race,
             planStart: start,
             weeks: weeks
-        )
+        ).replacing(sessions: weeks.flatMap(\.sessions), strength: strength)
     }
 }

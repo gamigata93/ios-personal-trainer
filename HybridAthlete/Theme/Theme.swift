@@ -254,6 +254,10 @@ enum Theme {
 
     enum Size {
         static let minTouchTarget: CGFloat = 44
+        /// Strength: the small dumbbell on a strip day or calendar cell that also has a run.
+        static let strengthBadge: CGFloat = 9
+        static let strengthBadgePadding: CGFloat = 1.5
+        static let strengthRowIcon: CGFloat = 20
         /// Workout breakdown: the splits chart's bar area, the narrowest partial
         /// bar's share, and the tiles' minimum width before they wrap.
         static let splitsChartHeight: CGFloat = 120

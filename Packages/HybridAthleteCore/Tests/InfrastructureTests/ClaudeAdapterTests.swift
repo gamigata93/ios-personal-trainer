@@ -190,7 +190,7 @@ struct GRDBLLMUsageLedgerTests {
         try PlanDatabaseMigrations.migrator.migrate(queue)
         try PlanDatabaseMigrations.migrator.migrate(queue)
         let applied = try await queue.read { db in try PlanDatabaseMigrations.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis"])
+        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis", "v5_plan_strength", "v6_workout_feedback", "v7_plan_adjustment"])
         let plans = try await queue.read { db in try String.fetchAll(db, sql: "SELECT id FROM plan") }
         #expect(plans == ["p1"])
         let usageRows = try await queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM llm_usage") }

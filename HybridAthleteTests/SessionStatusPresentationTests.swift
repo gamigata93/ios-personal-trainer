@@ -102,7 +102,7 @@ struct SessionStatusPresentationTests {
     }
 
     @Test func legendIsOneSpokenSentence() {
-        #expect(CalendarLegend.accessibilityText == "Legend. Types: easy circle, tempo arrow, threshold plateau, intervals zigzag, long run bar. "
+        #expect(CalendarLegend.accessibilityText == "Legend. Types: easy circle, tempo arrow, threshold plateau, intervals zigzag, long run bar, strength dumbbell. "
             + "Status: completed is blue with a check, today is lime, upcoming is gray, not recorded has a dashed border, missed is struck through.")
     }
 }

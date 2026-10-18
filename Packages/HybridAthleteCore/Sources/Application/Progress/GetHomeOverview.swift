@@ -27,7 +27,7 @@ public struct GetHomeOverview: Sendable {
     ) -> HomeOverview {
         let now = clock.now()
         let today = LocalDate(date: now, calendar: calendar)
-        let progress = PlanProgress(plan: plan, runs: runs.runs, today: today)
+        let progress = PlanProgress(plan: plan, runs: runs.runs, strength: runs.strength, today: today)
         let raceTitle = HomeFormat.raceTitle(distanceKm: plan.race.distanceKm)
 
         let shown = progress.stage == .finished ? nil : WeekStripBuilder.week(progress: progress, weekOffset: weekOffset)
@@ -45,6 +45,9 @@ public struct GetHomeOverview: Sendable {
             selectedDate: selected,
             selectedCard: shown.flatMap { week in
                 selected.flatMap { date in week.days.first { $0.date == date } }.map { DayCard.make(session: $0.session, status: $0.status, isRaceDay: $0.isRaceDay, raceTitle: raceTitle) }
+            },
+            strengthCard: shown.flatMap { week in
+                selected.flatMap { date in week.days.first { $0.date == date } }.flatMap { StrengthCard.make($0.strength, status: $0.strengthStatus) }
             },
             upNext: progress.nextSession(after: today).map { session in
                 HomeOverview.UpNext(
@@ -136,6 +139,7 @@ public struct GetHomeOverview: Sendable {
                     sessionType: cell.session?.type,
                     status: cell.status,
                     isRaceDay: cell.isRaceDay,
+                    strengthStatus: cell.strengthStatus,
                     accessibilityLabel: accessibilityLabel(cell)
                 )
             }
@@ -145,7 +149,8 @@ public struct GetHomeOverview: Sendable {
     /// "Wednesday 28 October, Easy run, today".
     private func accessibilityLabel(_ cell: DayCell) -> String {
         HomeFormat.dayAccessibilityLabel(
-            date: cell.date, sessionName: cell.session?.name, isRaceDay: cell.isRaceDay, status: cell.status, isToday: cell.isToday
+            date: cell.date, sessionName: cell.session?.name, isRaceDay: cell.isRaceDay, status: cell.status, isToday: cell.isToday,
+            strength: cell.strength.flatMap { item in cell.strengthStatus.map { (item.name, $0) } }
         )
     }
 }

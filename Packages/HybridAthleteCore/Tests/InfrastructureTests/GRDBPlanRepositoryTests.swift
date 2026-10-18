@@ -174,11 +174,11 @@ struct DatabaseMigrationTests {
         let first = try DatabaseProvider.onDisk(directory: directory)
         try await GRDBPlanRepository(database: first, clock: TestClock()).save(F.base)
         let applied = try await first.writer.read { db in try PlanDatabaseMigrations.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis"])
+        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis", "v5_plan_strength", "v6_workout_feedback", "v7_plan_adjustment"])
         let tables = try await first.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'plan%' ORDER BY name")
         }
-        #expect(tables == ["plan", "plan_edit", "plan_segment", "plan_session", "plan_week"])
+        #expect(tables == ["plan", "plan_adjustment", "plan_edit", "plan_segment", "plan_session", "plan_strength", "plan_strength_exercise", "plan_week"])
         let foreignKeys = try await first.writer.read { db in try Bool.fetchOne(db, sql: "PRAGMA foreign_keys") }
         #expect(foreignKeys == true)
 

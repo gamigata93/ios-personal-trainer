@@ -17,7 +17,7 @@ final class HomeUITests: XCTestCase {
         XCTAssertTrue(countdown.waitForExistence(timeout: 10))
         XCTAssertEqual(countdown.label, "39 days to go")
         let ring = element(app, "home.ring")
-        XCTAssertTrue(ring.waitForLabel("Plan adherence 86 percent", timeout: 10))
+        XCTAssertTrue(ring.waitForLabel("Plan adherence 89 percent", timeout: 10))
         XCTAssertEqual(element(app, "home.weekCaption").label, "Week 3 of 8")
         XCTAssertTrue(app.buttons["home.day.2026-10-28"].isSelected)
         keepScreenshot(of: app, named: "Home - 28 Oct")

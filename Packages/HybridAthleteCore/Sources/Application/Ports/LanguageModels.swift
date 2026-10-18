@@ -81,3 +81,23 @@ public struct ModelStatus: Sendable, Equatable {
 public protocol ModelAvailabilityChecker: Sendable {
     func status(for model: ModelChoice) async -> ModelStatus
 }
+
+/// A suggested schedule from a model, with what it cost.
+public struct AdjustmentDraftResult: Sendable, Equatable {
+    public let draft: AdjustmentDraft
+    public let usage: LLMUsage
+    public let promptText: String
+
+    public init(draft: AdjustmentDraft, usage: LLMUsage, promptText: String) {
+        self.draft = draft
+        self.usage = usage
+        self.promptText = promptText
+    }
+}
+
+/// Re-drafts the next days of a plan after feedback, from a finished prompt
+/// (`AdjustmentPromptBuilder`). Adapters throw `LLMError` only and record every
+/// attempt they send under `purpose`.
+public protocol PlanAdjustingModel: Sendable {
+    func adjustPlan(_ prompt: Prompt, model: ModelChoice, purpose: LLMCallPurpose) async throws -> AdjustmentDraftResult
+}

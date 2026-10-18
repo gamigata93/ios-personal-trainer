@@ -66,7 +66,46 @@ final class SessionDetailViewModel {
     /// Analyzes the run and writes a note when one is due.
     func appear() async {
         guard isCompleted else { return }
+        await loadFeedback()
         await notes.open(sessionID)
+    }
+
+    // MARK: Feedback
+
+    /// The shared feedback store; nil in tests that do not need it.
+    var feedback: FeedbackStore?
+    /// "ache, both calves, mild. Note: ..." or "No issues"; nil before an answer.
+    private(set) var feedbackText: String?
+
+    private var matchedRun: CompletedRun? {
+        guard let plan = plans.plan else { return nil }
+        return PlanProgress(plan: plan, runs: runs.result.runs, today: LocalDate(date: clock.now(), calendar: calendar)).matches[sessionID]
+    }
+
+    /// True while the feedback sheet is open (the view reloads the line after it closes).
+    var isFeedbackOpen: Bool { feedback?.current != nil }
+
+    func loadFeedback() async {
+        guard let feedback, let run = matchedRun else { return }
+        let stored = await feedback.feedback(workoutId: run.id)
+        feedbackText = stored.flatMap { item in
+            item.line.map { line in
+                let prefix = "\(HomeFormat.shortDate(item.localDate)) \(item.workoutKind.rawValue): "
+                let body = line.hasPrefix(prefix) ? String(line.dropFirst(prefix.count)) : line
+                return body.prefix(1).uppercased() + body.dropFirst()
+            }
+        }
+    }
+
+    /// Opens the popup for this run (prefilled when answered).
+    func editFeedback() {
+        guard let feedback, let run = matchedRun else { return }
+        Task {
+            await feedback.edit(
+                workoutId: run.id, kind: .run, localDate: run.localDate, title: "Run · \(HomeFormat.shortDate(run.localDate))",
+                detail: "\(SessionFormat.distanceText(km: run.distanceKm)) · \(Int((run.durationSeconds / 60).rounded())) min"
+            )
+        }
     }
 
     /// Tiles, splits, zones and plan vs actual: from the analysis, or from the

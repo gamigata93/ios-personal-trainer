@@ -22,6 +22,27 @@ public struct UnavailableWorkoutAnalysisRepository: WorkoutAnalysisRepository {
     public func delete(runId: String) async throws {}
 }
 
+/// Stands in when the database could not be opened: feedback is not kept, so
+/// nothing is asked (every workout reads as answered).
+public struct UnavailableWorkoutFeedbackRepository: WorkoutFeedbackRepository {
+    public init() {}
+
+    public func save(_ feedback: WorkoutFeedback) async throws { throw PlanRepositoryError.noActivePlan }
+    public func feedback(workoutId: String) async throws -> WorkoutFeedback? { nil }
+    public func feedback(since from: LocalDate) async throws -> [WorkoutFeedback] { throw PlanRepositoryError.noActivePlan }
+}
+
+/// Stands in when the database could not be opened: no suggestions.
+public struct UnavailablePlanAdjustmentRepository: PlanAdjustmentRepository {
+    public init() {}
+
+    public func savePending(planId: String, adjustment: PlanAdjustment) async throws -> StoredAdjustment { throw PlanAdjustmentError.notFound }
+    public func pending(planId: String) async throws -> StoredAdjustment? { nil }
+    public func apply(id: Int64) async throws { throw PlanAdjustmentError.notFound }
+    public func dismiss(id: Int64) async throws {}
+    public func undo(id: Int64) async throws { throw PlanAdjustmentError.notFound }
+}
+
 #if DEBUG
 /// Analyses in memory: previews.
 public actor InMemoryWorkoutAnalysisRepository: WorkoutAnalysisRepository {

@@ -37,12 +37,17 @@ enum CompositionRoot {
         var homeHealth: HomeHealthFactory = { _ in health.source }
         var launch = MainLaunch()
         var models = LanguageModels.apple(database: database, clock: clock)
-        var generator: any PlanGenerator = PlanGeneratorKind.template.make(models: models)
+        var generator: any PlanGenerator = PlanGeneratorKind.automatic.make(models: models)
         let loadProfile = LoadHeartRateProfile(snapshots: health.cache, recovery: recoveryCache)
         var workoutDetail: WorkoutDetailFactory = { _ in HealthKitWorkoutDetailSource() }
         var heartRateProfile: @Sendable () async -> HeartRateProfile? = { await loadProfile.execute() }
         var coachNoteModels: CoachNoteModels?
         var preferenceOverride: CoachModelPreference?
+        var strengthHealth: StrengthSourceFactory = { _ in health.source as? any StrengthWorkoutSource }
+        var adjustModels = AdjustModels(
+            adjusting: models.adjusting, availability: models.availability, models: CoachModelPreference.automatic.candidates
+        )
+        var asksFeedback = health.usesRealHealth
         #if DEBUG
         if let scenario = options.fakeLLM {
             models = LanguageModels.fake(scenario, clock: clock)
@@ -78,6 +83,23 @@ enum CompositionRoot {
             homeHealth = { plans in
                 FakeRunsHealthDataSource(base: health.source, activePlan: { await plans.loadActive() }, clock: clock, calendar: .current, highHeartRate: high)
             }
+            strengthHealth = { plans in
+                FakeRunsHealthDataSource(base: health.source, activePlan: { await plans.loadActive() }, clock: clock, calendar: .current)
+            }
+        }
+        // Fake Health never asks for feedback unless -feedbackPopup, and the rules
+        // write suggestions unless -fakeAdjust picks a canned model.
+        if !health.usesRealHealth {
+            asksFeedback = options.feedbackPopup
+            adjustModels = AdjustModels(adjusting: models.adjusting, availability: models.availability, models: [])
+        }
+        if let scenario = options.fakeAdjust {
+            let seeded = plans
+            adjustModels = AdjustModels(
+                adjusting: FakePlanAdjuster(scenario: scenario, activePlan: { await seeded.loadActive() }),
+                availability: FakeModelAvailabilityChecker(scenario: .ok, clock: clock, secrets: models.spend.secrets),
+                models: [.onDevice]
+            )
         }
         if let scenario = options.fakeCoachNote {
             coachNoteModels = CoachNoteModels.fake(scenario, spend: models.spend, clock: clock)
@@ -103,6 +125,15 @@ enum CompositionRoot {
         }
         #endif
         let noteDatabase = database ?? (try? DatabaseProvider.inMemory())
+        let feedbackInputs = FeedbackInputs(
+            feedback: noteDatabase.map { GRDBWorkoutFeedbackRepository(database: $0) as any WorkoutFeedbackRepository }
+                ?? UnavailableWorkoutFeedbackRepository(),
+            adjustments: noteDatabase.map { GRDBPlanAdjustmentRepository(database: $0, clock: clock) as any PlanAdjustmentRepository }
+                ?? UnavailablePlanAdjustmentRepository(),
+            adjust: adjustModels,
+            strengthHealth: strengthHealth,
+            asksAutomatically: asksFeedback
+        )
         let notes = NoteInputs(
             notes: noteDatabase.map { GRDBCoachNoteRepository(database: $0) as any CoachNoteRepository } ?? UnavailableCoachNoteRepository(),
             analyses: noteDatabase.map { GRDBWorkoutAnalysisRepository(database: $0) as any WorkoutAnalysisRepository }
@@ -122,6 +153,7 @@ enum CompositionRoot {
             generator: generator,
             models: models,
             notes: notes,
+            feedback: feedbackInputs,
             prepareStorage: prepareStorage
         )
     }
@@ -138,6 +170,27 @@ enum CompositionRoot {
 
     /// Where one workout's detail is read from, given the plan store (DEBUG fakes derive it).
     private typealias WorkoutDetailFactory = @MainActor (any PlanRepository) -> any WorkoutDetailSource
+
+    /// Where strength workouts are read from, given the plan store (DEBUG `-fakeRuns` derives them); nil reads none.
+    private typealias StrengthSourceFactory = @MainActor (any PlanRepository) -> (any StrengthWorkoutSource)?
+
+    /// The model that drafts suggested changes, what says whether it can run, and
+    /// the models to try in order (empty: the rules write every suggestion).
+    private struct AdjustModels {
+        let adjusting: any PlanAdjustingModel
+        let availability: any ModelAvailabilityChecker
+        let models: [ModelChoice]
+    }
+
+    /// Everything the after-workout feedback and suggested changes are built from.
+    private struct FeedbackInputs {
+        let feedback: any WorkoutFeedbackRepository
+        let adjustments: any PlanAdjustmentRepository
+        let adjust: AdjustModels
+        let strengthHealth: StrengthSourceFactory
+        /// The popup opens by itself (real Health, or DEBUG `-feedbackPopup`).
+        let asksAutomatically: Bool
+    }
 
     /// The model that writes coach notes and what says whether it can run: the
     /// real (gated) models, or DEBUG `-fakeCoachNote`.
@@ -187,6 +240,8 @@ enum CompositionRoot {
     /// template; DEBUG `-planGenerator` picks another. A new generator is one new
     /// adapter plus one case here.
     enum PlanGeneratorKind: Equatable {
+        /// Private Cloud Compute (light), then on-device, then the template.
+        case automatic
         case template
         case onDevice
         case pcc(ReasoningLevel)
@@ -199,6 +254,10 @@ enum CompositionRoot {
                 self = .template
                 return
             }
+            if id == "auto" {
+                self = .automatic
+                return
+            }
             switch ModelChoice(id: id) {
             case .onDevice: self = .onDevice
             case .privateCloud(let level): self = .pcc(level)
@@ -209,7 +268,7 @@ enum CompositionRoot {
 
         var model: ModelChoice? {
             switch self {
-            case .template: nil
+            case .template, .automatic: nil
             case .onDevice: .onDevice
             case .pcc(let level): .privateCloud(reasoning: level)
             case .anthropic(let model): .anthropic(model)
@@ -220,6 +279,16 @@ enum CompositionRoot {
         /// drafting the plan, checked with two attempts and never delayed;
         /// `fallback` adds the template behind a model.
         func make(models: LanguageModels, fallback: Bool = false, delaySeconds: Double? = nil) -> any PlanGenerator {
+            if self == .automatic {
+                // Each model gets two checked attempts; any model error moves on, the template is last.
+                func checked(_ model: ModelChoice) -> any PlanGenerator {
+                    ValidatingPlanGenerator(inner: ModelPlanGenerator(drafting: models.drafting, model: model))
+                }
+                return FallbackPlanGenerator(
+                    primary: checked(.privateCloud(reasoning: .light)),
+                    fallback: FallbackPlanGenerator(primary: checked(.onDevice), fallback: TemplatePlanGenerator())
+                )
+            }
             guard let model else {
                 #if DEBUG
                 if let delaySeconds, delaySeconds > 0 {
@@ -253,6 +322,8 @@ enum CompositionRoot {
     struct LanguageModels {
         let coaching: any CoachingModel
         let drafting: any PlanDraftingModel
+        /// Apple's models only (suggested changes never go to Claude).
+        let adjusting: any PlanAdjustingModel
         let availability: any ModelAvailabilityChecker
         let spend: SpendServices
 
@@ -275,6 +346,7 @@ enum CompositionRoot {
                     inner: FoundationModelsPlanDrafter(configuration: configuration, secrets: secrets, meter: meter),
                     gate: gate
                 ),
+                adjusting: FoundationModelsPlanAdjuster(configuration: configuration, secrets: secrets, meter: meter),
                 availability: FoundationModelAvailabilityChecker(configuration: configuration, secrets: secrets),
                 spend: SpendServices(
                     ledger: ledger, prices: prices, settings: settings, secrets: secrets, gate: gate,
@@ -298,6 +370,7 @@ enum CompositionRoot {
             return LanguageModels(
                 coaching: SpendGatedCoachingModel(inner: model, gate: gate),
                 drafting: SpendGatedPlanDraftingModel(inner: model, gate: gate),
+                adjusting: FakePlanAdjuster(scenario: .fail, activePlan: { nil }),
                 availability: FakeModelAvailabilityChecker(scenario: scenario, clock: clock, secrets: secrets),
                 spend: SpendServices(
                     ledger: ledger, prices: prices, settings: settings, secrets: secrets, gate: gate,
@@ -323,6 +396,7 @@ enum CompositionRoot {
         generator: any PlanGenerator,
         models: LanguageModels,
         notes: NoteInputs,
+        feedback: FeedbackInputs,
         prepareStorage: @escaping @MainActor () async -> Void
     ) -> RootViewModel {
         let clock = clock
@@ -370,7 +444,7 @@ enum CompositionRoot {
             makeHome: { onNoPlan in
                 makeMain(
                     plans: plans, stores: stores, health: homeHealth(plans), clock: clock, launch: launch,
-                    lab: LabInputs(models: models, snapshots: health.cache), notes: notes, onNoPlan: onNoPlan
+                    lab: LabInputs(models: models, snapshots: health.cache), notes: notes, feedback: feedback, onNoPlan: onNoPlan
                 )
             },
             prepareStorage: prepareStorage
@@ -387,6 +461,7 @@ enum CompositionRoot {
         launch: MainLaunch,
         lab: LabInputs,
         notes inputs: NoteInputs,
+        feedback feedbackInputs: FeedbackInputs,
         onNoPlan: @escaping @MainActor () -> Void
     ) -> MainScreens {
         let plans = ActivePlanStore(
@@ -398,15 +473,18 @@ enum CompositionRoot {
         let runs = CompletedRunsStore(
             plans: plans,
             loadCompletedRuns: LoadCompletedRuns(cache: stores.runs),
-            refreshCompletedRuns: RefreshCompletedRuns(health: health, cache: stores.runs, clock: clock, calendar: .current),
+            refreshCompletedRuns: RefreshCompletedRuns(
+                health: health, strength: feedbackInputs.strengthHealth(repository), cache: stores.runs, clock: clock, calendar: .current
+            ),
             clock: clock
         )
+        let loadFeedback = LoadWorkoutFeedback(feedback: feedbackInputs.feedback)
         // Coach notes: analysis, facts, the provider chain and the store, in one place.
         let prepareNote = PrepareWorkoutNote(
             analyze: AnalyzeWorkout(source: inputs.detail(repository), analyses: inputs.analyses, clock: clock),
             build: BuildWorkoutNoteRequest(
                 profile: inputs.profile, sleep: stores.sleep, recovery: stores.recovery, analyses: inputs.analyses,
-                clock: clock, calendar: .current
+                feedback: loadFeedback, clock: clock, calendar: .current
             )
         )
         let notes = CoachNoteStore(
@@ -427,7 +505,29 @@ enum CompositionRoot {
             loadNotes: LoadCoachNotes(notes: inputs.notes),
             today: { LocalDate(date: clock.now(), calendar: .current) }
         )
-        runs.onRefreshed = { await notes.afterRefresh() }
+        // After-workout feedback and suggested changes, in one place.
+        let feedback = FeedbackStore(
+            plans: plans,
+            runs: runs,
+            pending: PendingFeedback(feedback: feedbackInputs.feedback, clock: clock, calendar: .current),
+            save: SaveWorkoutFeedback(feedback: feedbackInputs.feedback),
+            load: loadFeedback,
+            suggest: SuggestPlanAdjustment(
+                adjusting: feedbackInputs.adjust.adjusting, availability: feedbackInputs.adjust.availability,
+                adjustments: feedbackInputs.adjustments, loadFeedback: loadFeedback, models: feedbackInputs.adjust.models,
+                clock: clock, calendar: .current
+            ),
+            adjustments: PlanAdjustments(adjustments: feedbackInputs.adjustments),
+            clock: clock,
+            asksAutomatically: feedbackInputs.asksAutomatically
+        )
+        notes.isAwaitingFeedback = { [weak feedback] id in feedback?.isAwaiting(id) ?? false }
+        feedback.onAnswered = { await notes.afterRefresh() }
+        // Feedback first: notes for workouts still being asked about wait for the answer.
+        runs.onRefreshed = {
+            await feedback.afterRefresh()
+            await notes.afterRefresh()
+        }
         let loadCachedSleep = LoadCachedSleep(cache: stores.sleep)
         let refreshRecoverySection = RefreshRecoverySection(
             refreshSleep: RefreshSleep(health: health, cache: stores.sleep, clock: clock, calendar: .current),
@@ -473,8 +573,10 @@ enum CompositionRoot {
             )
         }
         #endif
+        home.feedback = feedback
         let getSessionDetail = GetSessionDetail(clock: clock, calendar: .current)
-        return MainScreens(
+        let getStrengthDetail = GetStrengthDetail(clock: clock, calendar: .current)
+        let screens = MainScreens(
             plans: plans,
             runs: runs,
             home: home,
@@ -487,11 +589,18 @@ enum CompositionRoot {
             startTab: launch.startTab,
             notes: notes,
             makeSessionDetail: { id in
-                SessionDetailViewModel(
+                let detail = SessionDetailViewModel(
                     sessionID: id, plans: plans, runs: runs, notes: notes, getSessionDetail: getSessionDetail, clock: clock, calendar: .current
                 )
+                detail.feedback = feedback
+                return detail
             }
         )
+        screens.feedback = feedback
+        screens.makeStrengthDetail = { id in
+            StrengthDetailViewModel(sessionID: id, plans: plans, runs: runs, getStrengthDetail: getStrengthDetail)
+        }
+        return screens
     }
 
     #if DEBUG
@@ -597,9 +706,17 @@ enum CompositionRoot {
             settings: models.spend.settings,
             preferenceOverride: .ruleBased
         )
+        let feedback = FeedbackInputs(
+            feedback: database.map { GRDBWorkoutFeedbackRepository(database: $0) as any WorkoutFeedbackRepository }
+                ?? UnavailableWorkoutFeedbackRepository(),
+            adjustments: UnavailablePlanAdjustmentRepository(),
+            adjust: AdjustModels(adjusting: models.adjusting, availability: models.availability, models: []),
+            strengthHealth: { _ in runs },
+            asksAutomatically: false
+        )
         return makeMain(
             plans: plans, stores: stores, health: source, clock: clock, launch: MainLaunch(startTab: startTab),
-            lab: LabInputs(models: models, snapshots: InMemorySnapshotCache()), notes: notes, onNoPlan: {}
+            lab: LabInputs(models: models, snapshots: InMemorySnapshotCache()), notes: notes, feedback: feedback, onNoPlan: {}
         )
     }
 
@@ -629,7 +746,7 @@ enum CompositionRoot {
     /// - `-fakeRecovery <scenario>`: HRV and resting heart rate from a `FakeRecoveryScenario`, kept in memory.
     /// - `-startTab <home|calendar>`: the tab the main app opens on.
     /// - `-calendarMonth yyyy-MM`: the month the Calendar opens on (clamped to the plan).
-    /// - `-planGenerator <template|onDevice|pcc.light|pcc.moderate|pcc.deep|anthropic.haiku55|anthropic.sonnet55|anthropic.opus55|anthropic.fable51>`:
+    /// - `-planGenerator <auto|template|onDevice|pcc.light|pcc.moderate|pcc.deep|anthropic.haiku55|anthropic.sonnet55|anthropic.opus55|anthropic.fable51>`:
     ///   the generator for Race setup -> Generating (Claude runs are recorded with purpose planGeneration).
     /// - `-planFallback`: a model generator falls back to the template.
     /// - `-fakeLLM <ok|invalidPlan|unavailable|quota|slow|anthropicOk|noKey|badKey|credits|rateLimited>`: canned model
@@ -640,6 +757,8 @@ enum CompositionRoot {
     /// - `-fakeHeartRateHigh`: easy runs average 153 bpm instead of 139.
     /// - `-coachModel <auto|template|onDevice|pcc.light|pcc.moderate|pcc.deep|anthropic.haiku55|...>`: the coach notes'
     ///   model for this run, over the Lab's choice.
+    /// - `-feedbackPopup`: with fake Health, the after-workout popup opens by itself (it always does with real Health).
+    /// - `-fakeAdjust <ok|fail>`: canned suggested changes (fail: the rules write them); without it, fakes use the rules.
     struct DebugOptions {
         let usesFakes: Bool
         let personaID: String?
@@ -661,6 +780,8 @@ enum CompositionRoot {
         let fakeCoachNote: FakeCoachNoteScenario?
         let fakeHeartRateHigh: Bool
         let coachModel: CoachModelPreference?
+        let feedbackPopup: Bool
+        let fakeAdjust: FakeAdjustScenario?
 
         init(arguments: [String]) {
             func value(after flag: String) -> String? {
@@ -675,7 +796,7 @@ enum CompositionRoot {
             recoveryScenario = value(after: "-fakeRecovery").flatMap(FakeRecoveryScenario.init(rawValue:))
             startTab = value(after: "-startTab") == "calendar" ? .calendar : .home
             calendarMonth = value(after: "-calendarMonth").flatMap { YearMonth($0) }
-            planGenerator = value(after: "-planGenerator").flatMap(PlanGeneratorKind.init(id:)) ?? .template
+            let planGeneratorArgument = value(after: "-planGenerator").flatMap(PlanGeneratorKind.init(id:))
             planFallback = arguments.contains("-planFallback")
             fakeLLM = value(after: "-fakeLLM").flatMap(FakeLLMScenario.init(rawValue:))
             planDelay = value(after: "-planDelay").flatMap(Double.init)
@@ -683,8 +804,12 @@ enum CompositionRoot {
             fakeCoachNote = value(after: "-fakeCoachNote").flatMap(FakeCoachNoteScenario.init(rawValue:))
             fakeHeartRateHigh = arguments.contains("-fakeHeartRateHigh")
             coachModel = value(after: "-coachModel").flatMap(CoachModelPreference.init(id:))
+            feedbackPopup = arguments.contains("-feedbackPopup")
+            fakeAdjust = value(after: "-fakeAdjust").flatMap(FakeAdjustScenario.init(rawValue:))
             today = value(after: "-today").flatMap { LocalDate($0) }
             usesFakes = arguments.contains("-useInMemoryStores") || personaID != nil || simulate != nil || seedsPlan
+            // Fakes build plans with the template unless a generator is asked for; real Health uses Automatic.
+            planGenerator = planGeneratorArgument ?? (usesFakes ? .template : .automatic)
             startsAuthorized = arguments.contains("-authorized") || seedsPlan
             resetsCache = arguments.contains("-resetCache")
         }

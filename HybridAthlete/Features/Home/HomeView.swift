@@ -33,13 +33,19 @@ struct HomeView: View {
                                 .accessibilityIdentifier("home.locked")
                         }
                     }
+                    if let feedback = viewModel.feedback {
+                        SuggestionCardView(store: feedback)
+                    }
                     if let week = overview.week {
                         weekBlock(week)
                     }
                     if overview.selectedCard != nil || overview.upNext != nil {
                         VStack(spacing: Theme.Spacing.selectedToUpNext) {
                             if let card = overview.selectedCard {
-                                DayCardView(card: card, onOpenSession: onOpenSession)
+                                DayCardView(card: card, hasStrength: overview.strengthCard != nil, onOpenSession: onOpenSession)
+                            }
+                            if let strength = overview.strengthCard {
+                                StrengthRowView(card: strength, onOpen: onOpenSession)
                             }
                             if let upNext = overview.upNext {
                                 UpNextCard(upNext: upNext) { onOpenSession(upNext.sessionID) }
@@ -356,6 +362,15 @@ private struct DayPill: View {
                         .offset(x: Theme.Size.checkBadgeOffset.width, y: Theme.Size.checkBadgeOffset.height)
                     }
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    if let strength = day.strengthStatus {
+                        StrengthBadge(status: strength, color: day.isSelected ? Theme.Palette.onAccent : nil)
+                            .offset(x: Theme.Size.checkBadgeOffset.width, y: -Theme.Size.checkBadgeOffset.height)
+                    }
+                }
+        } else if let strength = day.strengthStatus {
+            let look = SessionStatusPresentation.presentation(strength)
+            StrengthIcon(size: Theme.Size.dayIcon, color: day.isSelected ? Theme.Palette.onAccent : look.iconColor, isStruck: look.iconDecoration == .strike)
         } else {
             Color.clear
         }

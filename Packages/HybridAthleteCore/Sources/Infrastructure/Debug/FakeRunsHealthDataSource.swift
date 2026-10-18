@@ -9,8 +9,10 @@ import Domain
 /// today gets a run at 95% of its distance, except every 5th session (the 5th,
 /// 10th, ...), which gets none. Today gets none.
 /// Runs carry the heart rate of their session type (`heartRate(for:high:)`).
+/// Every strength session originally before today gets a 32-minute strength
+/// workout at 18:00 on its original date.
 /// Everything else comes from the wrapped source. DEBUG builds only.
-public struct FakeRunsHealthDataSource: HealthDataSource {
+public struct FakeRunsHealthDataSource: HealthDataSource, StrengthWorkoutSource {
     static let distanceShare = 0.95
     static let skipEvery = 5
     static let secondsPerKm = 360.0
@@ -93,6 +95,26 @@ public struct FakeRunsHealthDataSource: HealthDataSource {
         guard let plan = await activePlan() else { return [] }
         return Self.runs(for: plan, today: LocalDate(date: clock.now(), calendar: calendar), calendar: calendar, highHeartRate: highHeartRate)
     }
+
+    public func strengthWorkouts(from: LocalDate, to: LocalDate) async throws -> [StrengthWorkoutSummary] {
+        guard let plan = await activePlan() else { return [] }
+        let today = LocalDate(date: clock.now(), calendar: calendar)
+        return plan.strengthSessions
+            .filter { $0.originalDate < today && (from...to).contains($0.originalDate) }
+            .sorted { $0.originalDate < $1.originalDate }
+            .compactMap { item in
+                guard
+                    let midnight = item.originalDate.date(in: calendar),
+                    let start = calendar.date(byAdding: .hour, value: Self.strengthHour, to: midnight)
+                else { return nil }
+                return StrengthWorkoutSummary(
+                    id: "fake-\(item.id)", startDate: start, durationSeconds: Self.strengthMinutes * 60, kind: .traditionalStrength
+                )
+            }
+    }
+
+    static let strengthHour = 18
+    static let strengthMinutes = 32.0
 
     static func runs(for plan: TrainingPlan, today: LocalDate, calendar: Calendar, highHeartRate: Bool = false) -> [RunSummary] {
         plan.sessions

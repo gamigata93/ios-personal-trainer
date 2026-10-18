@@ -13,12 +13,15 @@ public struct CompletedRunsResult: Sendable, Equatable {
     }
 
     public let runs: [CompletedRun]
+    /// Strength, core and HIIT workouts on the plan's days.
+    public let strength: [CompletedStrength]
     /// When the runs were read; nil when nothing was ever read.
     public let asOf: Date?
     public let source: Source
 
-    public init(runs: [CompletedRun], asOf: Date?, source: Source) {
+    public init(runs: [CompletedRun], strength: [CompletedStrength] = [], asOf: Date?, source: Source) {
         self.runs = runs
+        self.strength = strength
         self.asOf = asOf
         self.source = source
     }

@@ -98,13 +98,16 @@ struct CoachNotePersistenceTests {
         try await GRDBCoachNoteRepository(database: first).save(note())
         let second = try DatabaseProvider.onDisk(directory: directory)
         let applied = try await second.writer.read { db in try PlanDatabaseMigrations.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis"])
+        #expect(applied == ["v1_plan", "v2_llm_usage", "v3_coach_note", "v4_workout_analysis", "v5_plan_strength", "v6_workout_feedback", "v7_plan_adjustment"])
         #expect(try await GRDBCoachNoteRepository(database: second).note(planId: plan.id, sessionId: "2026-10-12") == note())
         #expect(await GRDBPlanRepository(database: second, clock: SystemClock()).loadActive() == plan)
         let tables = try await second.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'grdb%' AND name NOT LIKE 'sqlite%' ORDER BY name")
         }
-        #expect(tables == ["coach_note", "llm_usage", "plan", "plan_edit", "plan_segment", "plan_session", "plan_week", "workout_analysis"])
+        #expect(tables == [
+            "coach_note", "llm_usage", "plan", "plan_adjustment", "plan_edit", "plan_segment", "plan_session", "plan_strength",
+            "plan_strength_exercise", "plan_week", "workout_analysis", "workout_feedback",
+        ])
     }
 
     private static func keys(in object: Any) -> Set<String> {

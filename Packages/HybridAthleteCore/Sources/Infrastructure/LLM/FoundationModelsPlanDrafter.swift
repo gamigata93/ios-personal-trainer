@@ -46,7 +46,7 @@ public struct FoundationModelsPlanDrafter: PlanDraftingModel {
     }
 }
 
-@Generable(description: "The structure of a running training plan")
+@Generable(description: "The structure of a running training plan with strength sessions")
 struct PlanDraftDTO {
     @Guide(description: "Every week of the plan, in order")
     var weeks: [WeekDTO]
@@ -62,12 +62,32 @@ struct WeekDTO {
     var index: Int
     @Guide(description: "The phase of this week", .anyOf(PlanPhase.allCases.map(\.rawValue)))
     var phase: String
-    @Guide(description: "The week's sessions, one per training day at most")
+    @Guide(description: "The week's runs, one per training day at most")
     var sessions: [SessionDTO]
+    @Guide(description: "The week's strength sessions, 0 to 3, one per day at most")
+    var strength: [StrengthDTO]
 
     func week() throws -> DraftWeek {
         guard let phase = PlanPhase(rawValue: phase) else { throw LLMError.malformedOutput("Unknown phase \"\(self.phase)\".") }
-        return DraftWeek(index: index, phase: phase, sessions: try sessions.map { try $0.session() })
+        return DraftWeek(
+            index: index, phase: phase, sessions: try sessions.map { try $0.session() }, strength: try strength.map { try $0.strength() }
+        )
+    }
+}
+
+@Generable(description: "One strength session")
+struct StrengthDTO {
+    @Guide(description: "The day of the week", .anyOf(Weekday.allCases.map(\.name)))
+    var weekday: String
+    @Guide(description: "What the session trains", .anyOf(StrengthFocus.allCases.map(\.promptName)))
+    var focus: String
+    @Guide(description: "The session length in minutes, 15 to 60")
+    var minutes: Int
+
+    func strength() throws -> DraftStrength {
+        guard let day = Weekday.allCases.first(where: { $0.name == weekday }) else { throw LLMError.malformedOutput("Unknown weekday \"\(weekday)\".") }
+        guard let kind = StrengthFocus(promptName: focus) else { throw LLMError.malformedOutput("Unknown strength focus \"\(focus)\".") }
+        return DraftStrength(weekday: day, focus: kind, minutes: minutes)
     }
 }
 

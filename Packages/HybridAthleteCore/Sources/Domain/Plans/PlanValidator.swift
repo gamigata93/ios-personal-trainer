@@ -14,6 +14,9 @@ public enum PlanViolation: Sendable, Equatable {
     case phasesOutOfOrder(week: Int)
     case lastWeekNotTaper
     case weekGrowsTooFast(week: Int)
+    case tooManyStrength(week: Int)
+    case strengthMinutes(LocalDate)
+    case strength(LocalDate, StrengthPlacement.Problem)
 }
 
 extension PlanViolation {
@@ -32,6 +35,10 @@ extension PlanViolation {
         case .phasesOutOfOrder(let week): "Week \(week) goes back to an earlier phase."
         case .lastWeekNotTaper: "The last week must be a taper week."
         case .weekGrowsTooFast(let week): "Week \(week) grows more than 25% over the larger of the two weeks before."
+        case .tooManyStrength(let week): "Week \(week) has more than \(StrengthRules.maxPerWeek) strength sessions."
+        case .strengthMinutes(let date):
+            "The strength session on \(date) is outside \(StrengthRules.minutesRange.lowerBound) to \(StrengthRules.minutesRange.upperBound) minutes."
+        case .strength(let date, let problem): "The strength session on \(date) is \(problem.reason)."
         }
     }
 }
@@ -108,6 +115,26 @@ public enum PlanValidator {
                 violations.append(.weekGrowsTooFast(week: week.index))
             }
             previousTotals = [previousTotals[1], total]
+        }
+        violations += strengthViolations(plan)
+        return violations
+    }
+
+    /// At most `StrengthRules.maxPerWeek` a week, one a day, minutes in range,
+    /// and placed by `StrengthPlacement` against the plan's runs.
+    public static func strengthViolations(_ plan: TrainingPlan) -> [PlanViolation] {
+        var violations: [PlanViolation] = []
+        let runs = Dictionary(plan.sessions.map { ($0.date, $0.type) }, uniquingKeysWith: { first, _ in first })
+        var seen: Set<LocalDate> = []
+        for week in plan.weeks where week.strength.count > StrengthRules.maxPerWeek {
+            violations.append(.tooManyStrength(week: week.index))
+        }
+        for item in plan.strengthSessions {
+            if !seen.insert(item.date).inserted { violations.append(.strength(item.date, .twoOnOneDay)) }
+            if !StrengthRules.minutesRange.contains(item.minutes) { violations.append(.strengthMinutes(item.date)) }
+            violations += StrengthPlacement.problems(
+                date: item.date, runs: runs, trainingDays: plan.race.trainingDays, raceDate: plan.race.raceDate, planStart: plan.planStart
+            ).map { .strength(item.date, $0) }
         }
         return violations
     }

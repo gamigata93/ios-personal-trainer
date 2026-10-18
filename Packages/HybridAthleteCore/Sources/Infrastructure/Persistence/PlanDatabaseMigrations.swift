@@ -127,6 +127,68 @@ enum PlanDatabaseMigrations {
                 );
                 """)
         }
+        // Strength sessions: like plan_session, one a day, id "strength-<original date>".
+        migrator.registerMigration("v5_plan_strength") { db in
+            try db.execute(sql: """
+                CREATE TABLE plan_strength (
+                    planId TEXT NOT NULL REFERENCES plan(id) ON DELETE CASCADE,
+                    id TEXT NOT NULL,
+                    originalDate TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    focus TEXT NOT NULL,
+                    variant TEXT NOT NULL,
+                    minutes INTEGER NOT NULL,
+                    effort TEXT NOT NULL,
+                    isMissed INTEGER NOT NULL,
+                    PRIMARY KEY (planId, id),
+                    UNIQUE (planId, date)
+                );
+                CREATE TABLE plan_strength_exercise (
+                    planId TEXT NOT NULL REFERENCES plan(id) ON DELETE CASCADE,
+                    strengthId TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    sets INTEGER NOT NULL,
+                    reps INTEGER NULL,
+                    seconds INTEGER NULL,
+                    perSide INTEGER NOT NULL,
+                    equipment TEXT NOT NULL,
+                    howTo TEXT NOT NULL,
+                    PRIMARY KEY (planId, strengthId, position)
+                );
+                """)
+        }
+        // The user's after-workout feedback, one row per Health workout (a skip is a
+        // row too, so it is never asked again). Kept when a plan is deleted.
+        migrator.registerMigration("v6_workout_feedback") { db in
+            try db.execute(sql: """
+                CREATE TABLE workout_feedback (
+                    workoutId TEXT PRIMARY KEY NOT NULL,
+                    workoutKind TEXT NOT NULL,
+                    localDate TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    areas TEXT NOT NULL,
+                    note TEXT NULL,
+                    recordedAt TEXT NOT NULL
+                );
+                CREATE INDEX workout_feedback_localDate ON workout_feedback(localDate);
+                """)
+        }
+        // Suggested plan changes after feedback: pending until applied or dismissed.
+        // The payload holds the sessions before and after, so Undo can restore them.
+        migrator.registerMigration("v7_plan_adjustment") { db in
+            try db.execute(sql: """
+                CREATE TABLE plan_adjustment (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    planId TEXT NOT NULL REFERENCES plan(id) ON DELETE CASCADE,
+                    createdAt TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    decidedAt TEXT NULL
+                );
+                CREATE INDEX plan_adjustment_planId ON plan_adjustment(planId);
+                """)
+        }
         return migrator
     }
 }

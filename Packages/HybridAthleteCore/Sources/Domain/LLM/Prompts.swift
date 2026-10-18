@@ -68,8 +68,11 @@ public enum PlanPromptBuilder {
 
     public static let instructions = """
         You are a running coach drafting the structure of a training plan.
-        For each week give its index, its phase and its sessions. Each session has a weekday,
-        a type and a distance in km. Use only the facts and rules given. Keep distances to one decimal.
+        For each week give its index, its phase, its runs and its strength sessions. Each run has a weekday,
+        a type and a distance in km. Each strength session has a weekday, a focus and minutes.
+        Decide how many strength sessions each week needs (0 to 3): more in base and build, fewer when
+        running load peaks, none in race week, and fewer or mobility only after pain in the feedback.
+        Use only the facts and rules given. Keep distances to one decimal.
         """
 
     public static func build(_ request: PlanRequest) -> Prompt {
@@ -104,7 +107,15 @@ public enum PlanPromptBuilder {
             "Long run cap: \(HomeFormat.km(PlanValidator.longRunCapKm(request.planKind))) km",
             "Use only the training days listed",
             "No session on the race day or the day before",
+            "Strength focus: one of " + StrengthFocus.allCases.map(\.promptName).joined(separator: ", "),
+            "Strength minutes: \(StrengthRules.minutesRange.lowerBound) to \(StrengthRules.minutesRange.upperBound); at most \(StrengthRules.maxPerWeek) a week, one a day",
+            "Strength only on training days, alone or on an easy-run day; never on a tempo, threshold, interval or long-run day, "
+                + "never the day before a long run, never in race week",
         ]
+        if !request.feedback.isEmpty {
+            lines.append("Recent feedback:")
+            lines += request.feedback
+        }
         return lines
     }
 }

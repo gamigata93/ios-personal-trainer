@@ -33,14 +33,17 @@ public struct BuildWorkoutNoteRequest: Sendable {
     private let sleep: any SleepCache
     private let recovery: any RecoveryCache
     private let analyses: any WorkoutAnalysisRepository
+    private let feedback: LoadWorkoutFeedback?
     private let clock: any Clock
     private let calendar: Calendar
 
+    /// Without `feedback`, notes carry no feedback line.
     public init(
         profile: @escaping @Sendable () async -> HeartRateProfile?,
         sleep: any SleepCache,
         recovery: any RecoveryCache,
         analyses: any WorkoutAnalysisRepository,
+        feedback: LoadWorkoutFeedback? = nil,
         clock: any Clock,
         calendar: Calendar
     ) {
@@ -48,13 +51,17 @@ public struct BuildWorkoutNoteRequest: Sendable {
         self.sleep = sleep
         self.recovery = recovery
         self.analyses = analyses
+        self.feedback = feedback
         self.clock = clock
         self.calendar = calendar
     }
 
     public var today: LocalDate { LocalDate(date: clock.now(), calendar: calendar) }
 
-    public func execute(plan: TrainingPlan, runs: [CompletedRun], session: PlannedSession, run: CompletedRun, analysis: WorkoutAnalysis) async -> WorkoutNoteRequest {
+    public func execute(
+        plan: TrainingPlan, runs: [CompletedRun], strength: [CompletedStrength] = [], session: PlannedSession, run: CompletedRun,
+        analysis: WorkoutAnalysis
+    ) async -> WorkoutNoteRequest {
         let today = today
         let profile = await profile()
         let review = WorkoutReview(session: session, run: run, analysis: analysis, profile: profile)
@@ -64,13 +71,14 @@ public struct BuildWorkoutNoteRequest: Sendable {
         return WorkoutNoteRequest(
             review: review,
             planSource: plan.generatedBy,
-            program: ProgramStatus.make(plan: plan, runs: runs, verdicts: verdicts, today: today, runDate: run.localDate),
+            program: ProgramStatus.make(plan: plan, runs: runs, strength: strength, verdicts: verdicts, today: today, runDate: run.localDate),
             recovery: RecoveryContext.facts(
                 runDate: run.localDate,
                 sleepNights: nights,
                 hrvNights: cachedRecovery?.hrv ?? [],
                 restingDays: cachedRecovery?.restingHr ?? []
-            )
+            ),
+            feedback: await feedback?.execute(workoutId: run.id)?.line
         )
     }
 

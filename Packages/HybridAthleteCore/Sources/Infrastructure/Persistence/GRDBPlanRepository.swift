@@ -149,24 +149,66 @@ public struct GRDBPlanRepository: PlanRepository {
             )
         }
         for session in plan.sessions {
+            try insertRun(session, planId: plan.id, db: db)
+        }
+        for item in plan.strengthSessions {
+            try insertStrength(item, planId: plan.id, db: db)
+        }
+    }
+
+    static func insertRun(_ session: PlannedSession, planId: String, db: Database) throws {
+        try db.execute(
+            sql: """
+                INSERT INTO plan_session (planId, id, originalDate, date, type, name, distanceKm, estimatedMinutes,
+                                          effort, note, isMissed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            arguments: [
+                planId, session.id, session.originalDate.description, session.date.description, session.type.rawValue,
+                session.name, session.distanceKm, session.estimatedMinutes, session.effort, session.note, session.isMissed,
+            ]
+        )
+        for (position, segment) in session.segments.enumerated() {
+            try db.execute(
+                sql: "INSERT INTO plan_segment (planId, sessionId, position, label, detail, distanceKm) VALUES (?, ?, ?, ?, ?, ?)",
+                arguments: [planId, session.id, position, segment.label, segment.detail, segment.distanceKm]
+            )
+        }
+    }
+
+    static func deleteRun(id: String, planId: String, db: Database) throws {
+        try db.execute(sql: "DELETE FROM plan_segment WHERE planId = ? AND sessionId = ?", arguments: [planId, id])
+        try db.execute(sql: "DELETE FROM plan_session WHERE planId = ? AND id = ?", arguments: [planId, id])
+    }
+
+    static func insertStrength(_ item: StrengthSession, planId: String, db: Database) throws {
+        try db.execute(
+            sql: """
+                INSERT INTO plan_strength (planId, id, originalDate, date, focus, variant, minutes, effort, isMissed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            arguments: [
+                planId, item.id, item.originalDate.description, item.date.description, item.focus.rawValue, item.variant.rawValue,
+                item.minutes, item.effort, item.isMissed,
+            ]
+        )
+        for (position, exercise) in item.exercises.enumerated() {
             try db.execute(
                 sql: """
-                    INSERT INTO plan_session (planId, id, originalDate, date, type, name, distanceKm, estimatedMinutes,
-                                              effort, note, isMissed)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO plan_strength_exercise (planId, strengthId, position, name, sets, reps, seconds, perSide, equipment, howTo)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                 arguments: [
-                    plan.id, session.id, session.originalDate.description, session.date.description, session.type.rawValue,
-                    session.name, session.distanceKm, session.estimatedMinutes, session.effort, session.note, session.isMissed,
+                    planId, item.id, position, exercise.name, exercise.sets, exercise.reps, exercise.seconds, exercise.perSide,
+                    exercise.equipment.rawValue, exercise.howTo,
                 ]
             )
-            for (position, segment) in session.segments.enumerated() {
-                try db.execute(
-                    sql: "INSERT INTO plan_segment (planId, sessionId, position, label, detail, distanceKm) VALUES (?, ?, ?, ?, ?, ?)",
-                    arguments: [plan.id, session.id, position, segment.label, segment.detail, segment.distanceKm]
-                )
-            }
         }
+    }
+
+    static func deleteStrength(id: String, planId: String, db: Database) throws {
+        try db.execute(sql: "DELETE FROM plan_strength_exercise WHERE planId = ? AND strengthId = ?", arguments: [planId, id])
+        try db.execute(sql: "DELETE FROM plan_strength WHERE planId = ? AND id = ?", arguments: [planId, id])
     }
 
     /// Writes new dates and flags. Every touched session first moves to a
@@ -254,6 +296,31 @@ public struct GRDBPlanRepository: PlanRepository {
             ))
         }
 
+        var exercises: [String: [StrengthExercise]] = [:]
+        for row in try Row.fetchAll(
+            db, sql: "SELECT * FROM plan_strength_exercise WHERE planId = ? ORDER BY strengthId, position", arguments: [planId]
+        ) {
+            guard let equipment = StrengthEquipment(rawValue: row["equipment"]) else { return nil }
+            exercises[row["strengthId"], default: []].append(StrengthExercise(
+                name: row["name"], sets: row["sets"], reps: row["reps"], seconds: row["seconds"], perSide: row["perSide"],
+                equipment: equipment, howTo: row["howTo"]
+            ))
+        }
+        var strength: [StrengthSession] = []
+        for row in try Row.fetchAll(db, sql: "SELECT * FROM plan_strength WHERE planId = ? ORDER BY date", arguments: [planId]) {
+            let id: String = row["id"]
+            guard
+                let originalDate = LocalDate(row["originalDate"] as String),
+                let date = LocalDate(row["date"] as String),
+                let focus = StrengthFocus(rawValue: row["focus"]),
+                let variant = StrengthVariant(rawValue: row["variant"])
+            else { return nil }
+            strength.append(StrengthSession(
+                id: id, originalDate: originalDate, date: date, focus: focus, variant: variant, minutes: row["minutes"],
+                effort: row["effort"], exercises: exercises[id] ?? [], isMissed: row["isMissed"]
+            ))
+        }
+
         var weeks: [PlanWeek] = []
         for week in try Row.fetchAll(db, sql: "SELECT * FROM plan_week WHERE planId = ? ORDER BY idx", arguments: [planId]) {
             guard let start = LocalDate(week["startDate"] as String), let phase = PlanPhase(rawValue: week["phase"]) else { return nil }
@@ -274,7 +341,7 @@ public struct GRDBPlanRepository: PlanRepository {
             ),
             planStart: planStart,
             weeks: weeks
-        ).replacingSessions(sessions)
+        ).replacing(sessions: sessions, strength: strength)
     }
 
     // MARK: Encoding

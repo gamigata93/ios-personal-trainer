@@ -7,15 +7,22 @@ public struct DayCell: Sendable, Equatable {
     public let session: PlannedSession?
     public let status: SessionStatus?
     public let isRaceDay: Bool
+    public let strength: StrengthSession?
+    public let strengthStatus: SessionStatus?
 
     public var weekday: Weekday { date.weekday }
 
-    public init(date: LocalDate, isToday: Bool, session: PlannedSession?, status: SessionStatus?, isRaceDay: Bool) {
+    public init(
+        date: LocalDate, isToday: Bool, session: PlannedSession?, status: SessionStatus?, isRaceDay: Bool,
+        strength: StrengthSession? = nil, strengthStatus: SessionStatus? = nil
+    ) {
         self.date = date
         self.isToday = isToday
         self.session = session
         self.status = status
         self.isRaceDay = isRaceDay
+        self.strength = strength
+        self.strengthStatus = strengthStatus
     }
 }
 
@@ -41,7 +48,7 @@ public struct ShownWeek: Sendable, Equatable {
     /// otherwise race day, otherwise Monday.
     public func defaultSelection(today: LocalDate) -> LocalDate {
         if contains(today) { return today }
-        return days.first { $0.session != nil }?.date
+        return days.first { $0.session != nil || $0.strength != nil }?.date
             ?? days.first { $0.isRaceDay }?.date
             ?? startDate
     }
@@ -59,15 +66,19 @@ public enum WeekStripBuilder {
         let index = min(max(base + weekOffset, 1), count)
         let week = plan.weeks[index - 1]
         let sessionsByDay = Dictionary(plan.sessions.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
+        let strengthByDay = Dictionary(plan.strengthSessions.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
         let days = (0..<7).map { offset -> DayCell in
             let date = week.startDate.adding(days: offset)
             let session = sessionsByDay[date]
+            let strength = strengthByDay[date]
             return DayCell(
                 date: date,
                 isToday: date == progress.today,
                 session: session,
                 status: session.map(progress.status(of:)),
-                isRaceDay: date == plan.race.raceDate
+                isRaceDay: date == plan.race.raceDate,
+                strength: strength,
+                strengthStatus: strength.map(progress.status(of:))
             )
         }
         return ShownWeek(index: index, weekCount: count, startDate: week.startDate, days: days)

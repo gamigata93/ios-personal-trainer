@@ -63,6 +63,8 @@ public struct HomeOverview: Sendable, Equatable {
         public let sessionType: SessionType?
         public let status: SessionStatus?
         public let isRaceDay: Bool
+        /// Set when the day has a strength session (a small badge in the strip).
+        public let strengthStatus: SessionStatus?
         /// "Wednesday 28 October, Easy run, today".
         public let accessibilityLabel: String
     }
@@ -87,6 +89,8 @@ public struct HomeOverview: Sendable, Equatable {
     public let week: Week?
     public let selectedDate: LocalDate?
     public let selectedCard: SelectedCard?
+    /// The selected day's strength session, under the day card.
+    public let strengthCard: StrengthCard?
     public let upNext: UpNext?
     /// "Your phone is locked. Showing progress from today 07:40." Only when locked.
     public let lockedLine: String?

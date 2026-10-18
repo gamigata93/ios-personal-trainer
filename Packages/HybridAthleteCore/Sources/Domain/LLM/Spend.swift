@@ -3,12 +3,12 @@ import Foundation
 /// Why a model was called. Stored with every ledger record.
 public enum LLMCallPurpose: String, Sendable, Equatable, Hashable, CaseIterable, Codable {
     /// labCoachNote is the Lab's "Workout note"; workoutNote the real flow's note.
-    case labCoachNote, labPlanDraft, planGeneration, coachNote, keyTest, workoutNote
+    case labCoachNote, labPlanDraft, planGeneration, coachNote, keyTest, workoutNote, planAdjustment
 
     public var task: LLMTask {
         switch self {
         case .labCoachNote, .coachNote, .workoutNote: .coachNote
-        case .labPlanDraft, .planGeneration: .planDraft
+        case .labPlanDraft, .planGeneration, .planAdjustment: .planDraft
         case .keyTest: .keyTest
         }
     }

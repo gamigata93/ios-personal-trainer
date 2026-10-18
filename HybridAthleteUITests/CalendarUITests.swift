@@ -63,9 +63,10 @@ final class CalendarUITests: XCTestCase {
         for day in ["12", "14", "16", "19", "23", "26"] {
             XCTAssertTrue(app.buttons["calendarCell-2026-10-\(day)"].label.hasSuffix(", completed"), "2026-10-\(day)")
         }
+        // Six completed runs, plus 21 Oct whose strength session (read last) was done.
         let completed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'calendarCell-' AND label ENDSWITH ', completed'"))
-        XCTAssertEqual(completed.count, 6)
-        XCTAssertTrue(app.buttons["calendarCell-2026-10-21"].label.hasSuffix(", not recorded"))
+        XCTAssertEqual(completed.count, 7)
+        XCTAssertTrue(app.buttons["calendarCell-2026-10-21"].label.contains("Easy run, not recorded, plus Strength"))
 
         let legend = element(app, "calendarLegend")
         legend.scrollIntoViewIfNeeded(in: app)

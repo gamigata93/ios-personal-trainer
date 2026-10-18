@@ -7,6 +7,8 @@ import Application
 /// and race day have none.
 struct DayCardView: View {
     let card: DayCard
+    /// A rest day with a strength session reads "No run" instead of "Nothing scheduled".
+    var hasStrength = false
     let onOpenSession: (String) -> Void
 
     var body: some View {
@@ -81,11 +83,11 @@ struct DayCardView: View {
             }
             .padding(.top, Theme.Spacing.tight)
         case .rest:
-            Text("Rest day")
+            Text(hasStrength ? "No run" : "Rest day")
                 .font(Theme.Typography.sessionName)
                 .foregroundStyle(Theme.Palette.text)
                 .accessibilityIdentifier("dayCard.name")
-            Text("Nothing scheduled. Recover well.")
+            Text(hasStrength ? "Strength only." : "Nothing scheduled. Recover well.")
                 .font(Theme.Typography.sessionMeta)
                 .foregroundStyle(Theme.Palette.mutedText)
                 .fixedSize(horizontal: false, vertical: true)

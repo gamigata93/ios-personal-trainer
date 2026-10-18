@@ -71,9 +71,10 @@ public struct ProgramStatus: Sendable, Equatable {
     /// a completed session without one gets a distance-only verdict. Recent
     /// sessions are dated on or before `runDate` (the described run), never after.
     public static func make(
-        plan: TrainingPlan, runs: [CompletedRun], verdicts: [String: WorkoutVerdict], today: LocalDate, runDate: LocalDate
+        plan: TrainingPlan, runs: [CompletedRun], strength: [CompletedStrength] = [], verdicts: [String: WorkoutVerdict], today: LocalDate,
+        runDate: LocalDate
     ) -> ProgramStatus {
-        let progress = PlanProgress(plan: plan, runs: runs, today: today)
+        let progress = PlanProgress(plan: plan, runs: runs, strength: strength, today: today)
         let week = progress.currentWeekIndex.flatMap { index in plan.weeks.first { $0.index == index } }
         let done = week?.sessions.compactMap { progress.matches[$0.id]?.distanceKm }.reduce(0, +) ?? 0
         let recent = plan.sessions

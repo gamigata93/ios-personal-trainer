@@ -82,8 +82,10 @@ public enum HomeFormat {
 
     /// "Wednesday 28 October, Easy run, today": the date, the session (or "Race
     /// day" / "Rest day"), then the status, or "today" for today without one.
+    /// A strength session is read after the run: "..., Easy run, upcoming, plus Strength: Core A, upcoming".
     public static func dayAccessibilityLabel(
-        date: LocalDate, sessionName: String?, isRaceDay: Bool, status: SessionStatus?, isToday: Bool
+        date: LocalDate, sessionName: String?, isRaceDay: Bool, status: SessionStatus?, isToday: Bool,
+        strength: (name: String, status: SessionStatus)? = nil
     ) -> String {
         var parts = [spokenDate(date)]
         if isRaceDay {
@@ -97,6 +99,10 @@ public enum HomeFormat {
             parts.append(statusText(status).lowercased())
         } else if isToday {
             parts.append("today")
+        }
+        if let strength {
+            parts.append("plus \(strength.name)")
+            parts.append(statusText(strength.status).lowercased())
         }
         return parts.joined(separator: ", ")
     }

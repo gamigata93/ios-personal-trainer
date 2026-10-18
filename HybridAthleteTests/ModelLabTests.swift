@@ -18,10 +18,16 @@ struct PlanGeneratorCompositionTests {
         return options.planGenerator.make(models: models, fallback: options.planFallback, delaySeconds: options.planDelay)
     }
 
-    @Test func defaultIsTheTemplateWithoutDelay() {
-        #expect(generator([]) is TemplatePlanGenerator)
-        #expect((generator(["-planDelay", "2"]) as? SimulatedDelayPlanGenerator)?.seconds == 2)
-        #expect(generator(["-planDelay", "0"]) is TemplatePlanGenerator)
+    @Test func defaultIsAutomaticWithRealHealthAndTheTemplateWithFakes() {
+        // Real Health: Private Cloud Compute, then on-device, then the template.
+        #expect(generator([]) is FallbackPlanGenerator)
+        #expect(CompositionRoot.DebugOptions(arguments: []).planGenerator == .automatic)
+        #expect(CompositionRoot.PlanGeneratorKind(id: "auto") == .automatic)
+        // Fake Health: the template, with the DEBUG delay when asked for.
+        #expect(generator(["-seedPlan"]) is TemplatePlanGenerator)
+        #expect((generator(["-seedPlan", "-planDelay", "2"]) as? SimulatedDelayPlanGenerator)?.seconds == 2)
+        #expect(generator(["-seedPlan", "-planDelay", "0"]) is TemplatePlanGenerator)
+        #expect(generator(["-seedPlan", "-planGenerator", "auto"]) is FallbackPlanGenerator)
     }
 
     @Test func aModelKindIsValidatedWithTwoAttemptsAndNoDelay() {

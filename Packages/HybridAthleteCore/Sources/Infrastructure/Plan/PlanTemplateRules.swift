@@ -3,7 +3,7 @@ import Domain
 
 /// Every number behind the v1 template plan, in one place.
 enum PlanTemplateRules {
-    static let generatedBy = "template-v1"
+    static let generatedBy = "template-v2"
 
     // MARK: Weekly distance
 

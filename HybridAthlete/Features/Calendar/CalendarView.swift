@@ -39,7 +39,10 @@ struct CalendarView: View {
                         }
                     }
                     if let card = month.dayCard {
-                        DayCardView(card: card, onOpenSession: onOpenSession)
+                        DayCardView(card: card, hasStrength: month.strengthCard != nil, onOpenSession: onOpenSession)
+                    }
+                    if let strength = month.strengthCard {
+                        StrengthRowView(card: strength, onOpen: onOpenSession)
                     }
                     if !month.actions.isEmpty {
                         VStack(spacing: Theme.Spacing.actionRows) {
@@ -143,7 +146,7 @@ private struct CalendarCellView: View {
     let cell: CalendarMonthOverview.Cell
     let onTap: () -> Void
 
-    private var hasSession: Bool { cell.sessionType != nil || cell.isRaceDay }
+    private var hasSession: Bool { cell.sessionType != nil || cell.isRaceDay || cell.strengthStatus != nil }
     /// Nil on rest days, race day and days outside the plan.
     private var look: SessionStatusPresentation? { cell.status.map { SessionStatusPresentation.presentation($0) } }
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Theme.Radius.calendarCell, style: .continuous) }
@@ -225,6 +228,14 @@ private struct CalendarCellView: View {
                 .accessibilityHidden(true)
         } else if let type = cell.sessionType, let look {
             SessionTypeIcon(type: type, size: Theme.Size.calendarIcon, presentation: look)
+                .overlay(alignment: .bottomTrailing) {
+                    if let strength = cell.strengthStatus {
+                        StrengthBadge(status: strength)
+                            .offset(x: Theme.Size.checkBadgeOffset.width, y: -Theme.Size.checkBadgeOffset.height)
+                    }
+                }
+        } else if let strength = cell.strengthStatus {
+            StrengthIcon(size: Theme.Size.calendarIcon, presentation: .presentation(strength))
         } else {
             Color.clear
         }
@@ -430,10 +441,11 @@ private struct ActionIcon: Shape {
 /// hard to learn. Status samples use a plain circle so they imply no session type.
 struct CalendarLegend: View {
     private static let types: [SessionType] = [.easy, .tempo, .threshold, .intervals, .long]
+    /// The strength icon follows the run types in the first row.
     private static let statuses: [SessionStatus] = [.completed, .today, .upcoming, .notRecorded, .missed]
 
     /// One VoiceOver element for the whole legend.
-    static let accessibilityText = "Legend. Types: easy circle, tempo arrow, threshold plateau, intervals zigzag, long run bar. "
+    static let accessibilityText = "Legend. Types: easy circle, tempo arrow, threshold plateau, intervals zigzag, long run bar, strength dumbbell. "
         + "Status: completed is blue with a check, today is lime, upcoming is gray, not recorded has a dashed border, missed is struck through."
 
     var body: some View {
@@ -444,6 +456,10 @@ struct CalendarLegend: View {
                         SessionTypeIcon(type: type, size: Theme.Size.calendarIcon, color: Theme.Palette.text)
                         label(SessionFormat.sessionTypeName(type))
                     }
+                }
+                HStack(spacing: Theme.Spacing.legendIconToName) {
+                    StrengthIcon(size: Theme.Size.calendarIcon, color: Theme.Palette.text)
+                    label("Strength")
                 }
             }
             FlowLayout(spacing: Theme.Spacing.legendItemsGap, lineSpacing: Theme.Spacing.legendLines) {

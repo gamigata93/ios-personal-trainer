@@ -8,12 +8,15 @@ public struct WorkoutNoteRequest: Sendable, Equatable {
     public let planSource: String
     public let program: ProgramStatus
     public let recovery: RecoveryFacts
+    /// The athlete's feedback on this workout ("Mon 26 Oct run: ache, both calves, mild."), if given.
+    public let feedback: String?
 
-    public init(review: WorkoutReview, planSource: String, program: ProgramStatus, recovery: RecoveryFacts) {
+    public init(review: WorkoutReview, planSource: String, program: ProgramStatus, recovery: RecoveryFacts, feedback: String? = nil) {
         self.review = review
         self.planSource = planSource
         self.program = program
         self.recovery = recovery
+        self.feedback = feedback
     }
 
     public var findings: [Finding] { Findings.make(review) }
@@ -81,7 +84,7 @@ public enum FactsBuilder {
             level: level,
             workout: workout,
             program: programLines(program, recentCount: level >= 3 ? 0 : (level == 2 ? 1 : AnalysisRules.recentSessionsInFacts)),
-            recovery: RecoveryFactLines.lines(request.recovery)
+            recovery: RecoveryFactLines.lines(request.recovery) + (request.feedback.map { ["Athlete feedback: \($0)"] } ?? [])
         )
     }
 
@@ -175,6 +178,7 @@ public enum DetailedNotePromptBuilder {
         blocks using the block findings. Quote km marks and ranges exactly as written in the facts (for example km 1.4–4.3); \
         never invent a km mark. When it fits, connect the next step to the Next session in the facts. Plain text, second person, no emoji, no markdown, no medical advice. \
         If the facts say effort was not assessed or data is missing, say so. Mention at most one recovery fact. \
+        If the athlete feedback reports an ache or pain, acknowledge it in the next step, without medical advice. \
         Respect the limits: headline 60, how it went 320, versus the plan 320, the program 280, next step 200 characters.
         """
 

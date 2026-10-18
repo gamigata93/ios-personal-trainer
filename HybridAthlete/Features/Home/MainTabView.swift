@@ -1,4 +1,5 @@
 import SwiftUI
+import Domain
 import Application
 
 /// The main app once a plan exists: Home and Calendar behind a floating pill tab
@@ -34,8 +35,14 @@ struct MainTabView: View {
                 }
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: SessionDetailRoute.self) { route in
-                    SessionDetailView(viewModel: screens.makeSessionDetail(route.sessionId)) {
-                        if !path.isEmpty { path.removeLast() }
+                    if StrengthSession.isStrengthId(route.sessionId), let make = screens.makeStrengthDetail {
+                        StrengthDetailView(viewModel: make(route.sessionId)) {
+                            if !path.isEmpty { path.removeLast() }
+                        }
+                    } else {
+                        SessionDetailView(viewModel: screens.makeSessionDetail(route.sessionId)) {
+                            if !path.isEmpty { path.removeLast() }
+                        }
                     }
                 }
             }
@@ -46,6 +53,16 @@ struct MainTabView: View {
             }
         }
         .background(Theme.Palette.background.ignoresSafeArea())
+        .sheet(item: Binding(get: { screens.feedback?.current }, set: { _ in })) { prompt in
+            if let feedback = screens.feedback {
+                FeedbackSheetView(
+                    prompt: prompt,
+                    existing: feedback.editing,
+                    onSubmit: { status, areas, note in Task { await feedback.submit(status: status, areas: areas, note: note) } },
+                    onSkip: { Task { await feedback.skip() } }
+                )
+            }
+        }
     }
 
     private func open(_ sessionId: String) {

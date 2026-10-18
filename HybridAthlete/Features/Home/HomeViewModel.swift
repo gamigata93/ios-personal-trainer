@@ -40,6 +40,8 @@ final class HomeViewModel {
     private let onNoPlan: @MainActor () -> Void
     /// The shared coach notes, for the "Latest coach note" card.
     private let notes: CoachNoteStore?
+    /// The shared feedback store, for the "Suggested change" card; nil in tests that do not need it.
+    var feedback: FeedbackStore?
 
     init(
         plans: ActivePlanStore,

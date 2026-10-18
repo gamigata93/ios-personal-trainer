@@ -56,6 +56,8 @@ final class PlanEditUITests: XCTestCase {
         let app = launch()
         app.buttons["calendarCell-2026-10-21"].tap()
         XCTAssertEqual(element(app, "dayCard.status").label, "Not recorded")
+        // The strength row pushes the actions toward the tab bar: scroll them up first.
+        app.swipeUp()
         app.buttons["actionMissed"].tap()
 
         XCTAssertTrue(element(app, "dayCard.status").waitForLabel("Missed", timeout: 5))
@@ -64,7 +66,7 @@ final class PlanEditUITests: XCTestCase {
         keepScreenshot(of: app, named: "Missed")
 
         app.buttons["tab.home"].tap()
-        XCTAssertTrue(element(app, "home.ring").waitForLabel("Plan adherence 86 percent", timeout: 10))
+        XCTAssertTrue(element(app, "home.ring").waitForLabel("Plan adherence 89 percent", timeout: 10))
         app.buttons["weekPrev"].tap()
         XCTAssertTrue(app.buttons["home.day.2026-10-21"].label.contains("missed"))
         app.buttons["home.day.2026-10-21"].tap()

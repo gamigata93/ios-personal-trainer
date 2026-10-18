@@ -79,8 +79,9 @@ only) -> Starting point (loads in the background) -> Race setup -> Generating.
    the user can train. No default training days: nothing is preselected or
    restored, and the user picks at least 2 and at most 6. A suggested plan
    prefills its distance and race day; "Custom race" starts blank.
-4. Generating: plan generation goes through the PlanGenerator port; v1 uses
-   TemplatePlanGenerator (generatedBy "template-v1"). Then the app opens Home.
+4. Generating: plan generation goes through the PlanGenerator port. The default is Automatic:
+   Private Cloud Compute (light), then on-device, each with 2 validated attempts, then
+   TemplatePlanGenerator (generatedBy "template-v2", with strength). Then the app opens Home.
 
 Launch routing: never-requested -> Connect Health; no plan -> Starting point; plan -> Home.
 Health reads run in the background on every launch. Screens render the cached snapshot
@@ -138,14 +139,38 @@ Main app (floating tab bar: Home, Calendar):
 - Coach notes are written automatically only while the app is open, for completed sessions of the last
   7 days, at most 3 per refresh (newest first), and on opening such a session; older sessions get a
   "Write coach note" button. One generation at a time. Locked Health waits for the next refresh.
+- After-workout feedback: on app open, each new run or strength workout from Health of the last 3 days
+  (no stored answer yet) gets a popup, newest first: "Anything bothering you?" No / Yes; per area (knee, calf,
+  shin, Achilles or ankle, foot, hip, hamstring, quad, lower back, other) the side, ache or pain, and level
+  1-3; an optional note (200 characters). Skip stores a skip, so nothing is asked twice. Answers live in
+  GRDB (workout_feedback) and are editable from Session detail ("Your feedback"). Auto coach notes wait for
+  the popup, and the note's facts carry the answer. Rules (FeedbackRules): any pain, a severe ache, or a
+  moderate ache in the same area twice within 7 days suggests a plan change.
+- Suggested change (Home card): the next days (today, or tomorrow when today is done, to the end of next
+  week) are re-drafted by Apple's models (PCC, then on-device, 2 validated attempts each) or else by
+  RuleBasedAdjustment (hard runs easy, 20% shorter, leg or back strength becomes mobility, severe pain drops
+  2 days of running). A change never adds running. Apply / Keep plan; Apply shows Undo. Severe pain adds
+  one line: "If sharp pain lasts, check with a professional." No other medical advice. Stored in
+  plan_adjustment; apply and undo check the window is unchanged.
 - Navigation: two tabs (Home, Calendar) in one NavigationStack. Session detail is pushed over
   either tab from the day card's arrow or Home's Up next card, and the tab bar is hidden there.
+  Strength sessions open the strength detail (exercises, dose, equipment, how-to) from the strength row.
 - ActivePlanStore and CompletedRunsStore are the single shared state for plan and completion.
   Views never call repositories, caches or HealthKit directly.
 
 ## Plan rules
 - Session types: easy, tempo, threshold, intervals, long (rest = no session).
   The icon shape encodes the type. Color encodes status only.
+- Strength sessions are a separate list per week (id "strength-<original date>", at most one a day, 0 to 3 a
+  week; the model decides how many). Only on training days, alone or on an easy-run day; never on a tempo,
+  threshold, interval or long-run day, the day before a long run, or in race week (StrengthPlacement).
+  The model (or template) picks a focus (lower body, calves and feet, core, full body, mobility) and minutes
+  (15-60); code fills the exercises from StrengthLibrary: two fixed lists per focus (A and B, alternating
+  in date order per focus), doses by phase (StrengthRules; nothing random). The template plans 2 a week in
+  base and build, 1 in peak and taper, none in race week. A Health strength, functional strength, core or
+  HIIT workout of at least 15 minutes on the same day completes it. Strength shows as a dumbbell (a badge on
+  days with a run) in the strip and calendar, and a strength row under the day card. Edits do not move
+  strength sessions.
 - Statuses now: completed, missed (the user's acknowledgement, stored as a flag), not
   recorded (a past session with no matching run), today, upcoming. Precedence: completed >
   missed > notRecorded > today > upcoming (a missed session that later gets a matching run is
@@ -154,10 +179,11 @@ Main app (floating tab bar: Home, Calendar):
 - Completion: a run on the same local day covering at least 60% of the planned
   distance (PlanProgressRules.matchShare, exactly 60% counts) completes the session;
   the longest candidate wins, a run matches one session at most, and runs on days
-  without a session are ignored. Adherence = completed / due, where due = sessions
+  without a session are ignored. Adherence = completed / due (runs and strength sessions), where due = sessions
   before today plus today's once completed or missed; a missed session is due and not
   completed; nothing due shows "-", never 0%. Up next skips missed sessions.
-- Edits change dates or the missed flag only, never content. A session's `id` is its ORIGINAL
+- Edits change dates or the missed flag only, never content. The one exception is an applied suggested
+  change, which replaces the runs and strength sessions in its window (logged in plan_adjustment, with Undo). A session's `id` is its ORIGINAL
   date and never changes; placement uses `date`, identity and routes use `id`. The plan is
   returned with each session in the week of its current date (weeks keep their phase and target).
 - Allowed targets (PlanEditRules.swift): free days from max(today, planStart) to raceDate minus
@@ -185,11 +211,11 @@ Main app (floating tab bar: Home, Calendar):
   PlanValidator before it is saved. LLM prompts contain summaries only, never raw routes or
   personal names.
 - Never hardcode the on-device context size: read it at runtime.
-- The default plan generator is TemplatePlanGenerator. LLM generators are opt-in (DEBUG
-  -planGenerator and the Model Lab) and are wrapped in ValidatingPlanGenerator (2 attempts).
+- The default plan generator is Automatic (PCC light, then on-device, then TemplatePlanGenerator), each model
+  wrapped in ValidatingPlanGenerator (2 attempts). DEBUG fakes use the template unless -planGenerator is given.
 - Model Lab is DEBUG-only (Home header ladybug button or long-press, "Model Lab"). -planGenerator, -planFallback
   and -fakeLLM are DEBUG launch arguments. Claude in the Lab needs consent ("Send summaries to
-  Anthropic?") and a key; Release builds still use the template plan generator.
+  Anthropic?") and a key; Release builds never use Claude for plans or suggested changes.
 - Code computes everything numeric: pace, splits, HR drift, zones, percentiles,
   PR detection, plan match, fit labels. The LLM only reasons over compact summaries
   and writes text or a structured plan.
@@ -242,12 +268,17 @@ Main app (floating tab bar: Home, Calendar):
   -coachModel, the rules write the notes. The fakes use the profile max 182, resting 49.
   The Home ladybug menu also has "Copy coach note facts"; Session detail's note menu has "Copy facts",
   "Show facts", "Copy analysis JSON" and "Copy note JSON".
+  -feedbackPopup lets the after-workout popup open with fake Health (it never does otherwise); -fakeAdjust
+  <ok|fail> gives canned suggested changes (fail: the rules); without it, fakes use the rules. -fakeRuns also
+  gives a 32-minute strength workout on every strength session's original date before today.
+  -planGenerator also takes auto.
 - The snapshot cache holds summaries only (never raw routes, workout lists or the date
   of birth). Reference data and user data stay separate.
 - The raw JSON view exists only in DEBUG builds.
 - Every generator's output must pass PlanValidator before it is saved.
 - Database = GRDB (v7). It holds the plan, the plan edit log, the usage ledger, coach notes
-  (v3_coach_note) and workout analyses (v4_workout_analysis) (trainer.sqlite in Application Support). Caches (runs, sleep, recovery, snapshot) stay JSON files. A plan in the old
+  (v3_coach_note), workout analyses (v4_workout_analysis), strength sessions (v5_plan_strength), workout
+  feedback (v6_workout_feedback) and suggested changes (v7_plan_adjustment) (trainer.sqlite in Application Support). Caches (runs, sleep, recovery, snapshot) stay JSON files. A plan in the old
   TrainingPlan.json is imported once at launch and the file is renamed, never deleted.
 - The API key lives only in the Keychain (SecretStore). Never in source, Info.plist, logs,
   analytics or any copied JSON. The ledger stores token counts and costs, never prompts or outputs.

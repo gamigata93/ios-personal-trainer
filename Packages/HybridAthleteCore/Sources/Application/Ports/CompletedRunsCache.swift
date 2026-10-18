@@ -14,18 +14,24 @@ public protocol CompletedRunsCache: Sendable {
 public struct CachedRuns: Sendable, Equatable, Codable {
     /// Bump when the shape changes; older files are then ignored.
     /// 2: runs gained their average and max heart rate.
-    public static let currentSchemaVersion = 2
+    /// 3: strength workouts.
+    public static let currentSchemaVersion = 3
 
     public let schemaVersion: Int
     public let generatedAt: Date
     /// The plan the runs were read for. Runs cached for another plan are ignored.
     public let planId: String
     public let runs: [CompletedRun]
+    public let strength: [CompletedStrength]
 
-    public init(schemaVersion: Int = CachedRuns.currentSchemaVersion, generatedAt: Date, planId: String, runs: [CompletedRun]) {
+    public init(
+        schemaVersion: Int = CachedRuns.currentSchemaVersion, generatedAt: Date, planId: String, runs: [CompletedRun],
+        strength: [CompletedStrength] = []
+    ) {
         self.schemaVersion = schemaVersion
         self.generatedAt = generatedAt
         self.planId = planId
         self.runs = runs
+        self.strength = strength
     }
 }

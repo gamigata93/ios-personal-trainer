@@ -36,7 +36,10 @@ public struct PrepareWorkoutNote: Sendable {
     }
 
     /// `cachedOnly` never reads Health (an uncached run is then `waitingForUnlock`).
-    public func execute(plan: TrainingPlan, runs: [CompletedRun], sessionId: String, cachedOnly: Bool = false) async throws -> PrepareResult {
+    /// `strength` only counts toward the program's adherence.
+    public func execute(
+        plan: TrainingPlan, runs: [CompletedRun], strength: [CompletedStrength] = [], sessionId: String, cachedOnly: Bool = false
+    ) async throws -> PrepareResult {
         let progress = PlanProgress(plan: plan, runs: runs, today: build.today)
         guard let session = plan.session(id: sessionId), let run = progress.matches[session.id] else { return .notCompleted }
         let analysis: WorkoutAnalysis
@@ -49,7 +52,7 @@ public struct PrepareWorkoutNote: Sendable {
             case .waitingForUnlock: return .waitingForUnlock
             }
         }
-        let request = await build.execute(plan: plan, runs: runs, session: session, run: run, analysis: analysis)
+        let request = await build.execute(plan: plan, runs: runs, strength: strength, session: session, run: run, analysis: analysis)
         let facts = FactsBuilder.build(request)
         return .ready(PreparedWorkoutNote(
             planId: plan.id, session: session, run: run, request: request, facts: facts,
@@ -182,9 +185,11 @@ public struct GenerateDetailedCoachNote: Sendable {
         self.clock = clock
     }
 
-    public func execute(plan: TrainingPlan, runs: [CompletedRun], sessionId: String, force: Bool) async throws -> CoachNoteOutcome {
+    public func execute(
+        plan: TrainingPlan, runs: [CompletedRun], strength: [CompletedStrength] = [], sessionId: String, force: Bool
+    ) async throws -> CoachNoteOutcome {
         let prepared: PreparedWorkoutNote
-        switch try await prepare.execute(plan: plan, runs: runs, sessionId: sessionId) {
+        switch try await prepare.execute(plan: plan, runs: runs, strength: strength, sessionId: sessionId) {
         case .ready(let ready): prepared = ready
         case .waitingForUnlock: return .waitingForUnlock
         case .notCompleted: return .notCompleted

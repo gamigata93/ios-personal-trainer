@@ -84,6 +84,9 @@ public struct PlanRequest: Sendable, Equatable {
     public let source: PlanSource
     /// Problems with an earlier attempt, for a model to fix. The template ignores them.
     public let revisionNotes: [String]
+    /// The athlete's recent after-workout feedback, one line each
+    /// ("Mon 26 Oct run: pain, left knee, moderate."). The template ignores them.
+    public let feedback: [String]
 
     public init(
         race: RaceSetup,
@@ -91,7 +94,8 @@ public struct PlanRequest: Sendable, Equatable {
         today: LocalDate,
         planKind: PlanKind,
         source: PlanSource,
-        revisionNotes: [String] = []
+        revisionNotes: [String] = [],
+        feedback: [String] = []
     ) {
         self.race = race
         self.fitness = fitness
@@ -99,11 +103,12 @@ public struct PlanRequest: Sendable, Equatable {
         self.planKind = planKind
         self.source = source
         self.revisionNotes = revisionNotes
+        self.feedback = feedback
     }
 
     /// The same request with notes for the next attempt.
     public func revised(notes: [String]) -> PlanRequest {
-        PlanRequest(race: race, fitness: fitness, today: today, planKind: planKind, source: source, revisionNotes: notes)
+        PlanRequest(race: race, fitness: fitness, today: today, planKind: planKind, source: source, revisionNotes: notes, feedback: feedback)
     }
 
     /// Weeks from the plan start to race day.
@@ -232,17 +237,40 @@ public struct PlanWeek: Sendable, Equatable, Codable {
     public let startDate: LocalDate
     public let phase: PlanPhase
     public let targetKm: Double
+    /// Runs, at most one a day.
     public let sessions: [PlannedSession]
+    /// Strength sessions, at most one a day; alone or on an easy-run day.
+    public let strength: [StrengthSession]
 
-    public init(index: Int, startDate: LocalDate, phase: PlanPhase, targetKm: Double, sessions: [PlannedSession]) {
+    public init(
+        index: Int, startDate: LocalDate, phase: PlanPhase, targetKm: Double, sessions: [PlannedSession], strength: [StrengthSession] = []
+    ) {
         self.index = index
         self.startDate = startDate
         self.phase = phase
         self.targetKm = targetKm
         self.sessions = sessions
+        self.strength = strength
     }
 
     public var totalKm: Double { sessions.map(\.distanceKm).reduce(0, +) }
+
+    private enum CodingKeys: String, CodingKey {
+        case index, startDate, phase, targetKm, sessions, strength
+    }
+
+    /// Weeks saved before strength existed have none.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            index: try container.decode(Int.self, forKey: .index),
+            startDate: try container.decode(LocalDate.self, forKey: .startDate),
+            phase: try container.decode(PlanPhase.self, forKey: .phase),
+            targetKm: try container.decode(Double.self, forKey: .targetKm),
+            sessions: try container.decode([PlannedSession].self, forKey: .sessions),
+            strength: try container.decodeIfPresent([StrengthSession].self, forKey: .strength) ?? []
+        )
+    }
 }
 
 public struct TrainingPlan: Sendable, Equatable, Codable {
@@ -278,23 +306,35 @@ public struct TrainingPlan: Sendable, Equatable, Codable {
         self.weeks = weeks
     }
 
+    /// Every run, in week order.
     public var sessions: [PlannedSession] { weeks.flatMap(\.sessions) }
+
+    /// Every strength session, in week order.
+    public var strengthSessions: [StrengthSession] { weeks.flatMap(\.strength) }
 
     /// The same plan with `sessions` placed in the week containing each one's
     /// current date, sorted by date. Weeks keep their phase and targetKm as generated.
     public func replacingSessions(_ sessions: [PlannedSession]) -> TrainingPlan {
+        replacing(sessions: sessions, strength: strengthSessions)
+    }
+
+    /// The same plan with runs and strength sessions placed in the week holding each one's current date.
+    public func replacing(sessions: [PlannedSession], strength: [StrengthSession]) -> TrainingPlan {
         let sorted = sessions.sorted { $0.date < $1.date }
+        let sortedStrength = strength.sorted { $0.date < $1.date }
         let rebuilt = weeks.enumerated().map { offset, week in
             let isFirst = offset == 0
             let isLast = offset == weeks.count - 1
             let end = week.startDate.adding(days: 7)
+            // Dates outside every week (never valid for an edit) stay in the nearest one.
+            func inWeek(_ date: LocalDate) -> Bool { (date >= week.startDate || isFirst) && (date < end || isLast) }
             return PlanWeek(
                 index: week.index,
                 startDate: week.startDate,
                 phase: week.phase,
                 targetKm: week.targetKm,
-                // Dates outside every week (never valid for an edit) stay in the nearest one.
-                sessions: sorted.filter { ($0.date >= week.startDate || isFirst) && ($0.date < end || isLast) }
+                sessions: sorted.filter { inWeek($0.date) },
+                strength: sortedStrength.filter { inWeek($0.date) }
             )
         }
         return TrainingPlan(
@@ -311,6 +351,21 @@ public struct TrainingPlan: Sendable, Equatable, Codable {
     /// The session on this day, if any.
     public func session(on date: LocalDate) -> PlannedSession? {
         sessions.first { $0.date == date }
+    }
+
+    /// The strength session with this id, wherever it is now.
+    public func strengthSession(id: String) -> StrengthSession? {
+        strengthSessions.first { $0.id == id }
+    }
+
+    /// The strength session on this day, if any.
+    public func strengthSession(on date: LocalDate) -> StrengthSession? {
+        strengthSessions.first { $0.date == date }
+    }
+
+    /// The week (by phase) holding `date`.
+    public func week(containing date: LocalDate) -> PlanWeek? {
+        weeks.first { date >= $0.startDate && date < $0.startDate.adding(days: 7) }
     }
 
     /// The same plan with a new identity, as assigned when it is saved.

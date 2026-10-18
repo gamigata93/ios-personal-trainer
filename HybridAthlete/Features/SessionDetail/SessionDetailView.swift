@@ -59,6 +59,10 @@ struct SessionDetailView: View {
                 .accessibilityIdentifier("analysisWaiting")
         }
         CoachNoteCardView(viewModel: viewModel)
+        if viewModel.feedback != nil {
+            FeedbackCardView(text: viewModel.feedbackText, onEdit: viewModel.editFeedback)
+                .task(id: viewModel.isFeedbackOpen) { await viewModel.loadFeedback() }
+        }
         if !breakdown.splits.isEmpty {
             SplitsCardView(breakdown: breakdown)
         }
@@ -309,5 +313,41 @@ private struct NoteCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("sessionDetailNote")
+    }
+}
+
+/// "Your feedback": the answer to the after-workout check, with Edit (or Add).
+private struct FeedbackCardView: View {
+    let text: String?
+    let onEdit: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.compact) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.tight) {
+                Text("Your feedback")
+                    .font(Theme.Typography.coachCaption)
+                    .tracking(Theme.Typography.captionTracking)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Theme.Palette.mutedText)
+                    .accessibilityAddTraits(.isHeader)
+                Text(text ?? "Not given yet.")
+                    .font(Theme.Typography.sessionMeta)
+                    .foregroundStyle(text == nil ? Theme.Palette.mutedText : Theme.Palette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("feedbackCardText")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(text == nil ? "Add" : "Edit", action: onEdit)
+                .buttonStyle(OutlineButtonStyle())
+                .accessibilityIdentifier("feedbackCardEdit")
+        }
+        .padding(Theme.Spacing.selectedCardPadding)
+        .background(Theme.Palette.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(Theme.Palette.cardBorder, lineWidth: Theme.Size.borderWidth)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("feedbackCard")
     }
 }

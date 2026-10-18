@@ -8,7 +8,7 @@ import Domain
 /// Workouts come from every app that wrote them; the source name is kept as a
 /// label only, with personal names removed ("Alex's Apple Watch" becomes
 /// "Apple Watch"). Health values are never logged.
-public struct HealthKitDataSource: HealthDataSource {
+public struct HealthKitDataSource: HealthDataSource, StrengthWorkoutSource {
     private let store: HKHealthStore
     private let clock: any Clock
     /// Turns local plan days into the start and end moments of a query.
@@ -171,6 +171,36 @@ public struct HealthKitDataSource: HealthDataSource {
                     maxHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm)
                 )
             }
+    }
+
+    // MARK: Strength
+
+    /// Strength, functional strength, core and HIIT workouts from every source.
+    public func strengthWorkouts(from: LocalDate, to: LocalDate) async throws -> [StrengthWorkoutSummary] {
+        guard let start = from.date(in: calendar), let end = to.adding(days: 1).date(in: calendar) else { return [] }
+        let kinds: [HKWorkoutActivityType: StrengthWorkoutKind] = [
+            .traditionalStrengthTraining: .traditionalStrength,
+            .functionalStrengthTraining: .functionalStrength,
+            .coreTraining: .core,
+            .highIntensityIntervalTraining: .hiit,
+        ]
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSCompoundPredicate(orPredicateWithSubpredicates: kinds.keys.map {
+                HKQuery.predicateForWorkouts(activityPredicate: HKQuery.predicateForWorkoutActivities(workoutActivityType: $0))
+            }),
+            HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
+        ])
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.workout(predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)],
+            limit: nil
+        )
+        let workouts = try await translatingErrors { try await descriptor.result(for: store) }
+        return workouts.compactMap { workout in
+            kinds[workout.workoutActivityType].map {
+                StrengthWorkoutSummary(id: workout.uuid.uuidString, startDate: workout.startDate, durationSeconds: workout.duration, kind: $0)
+            }
+        }
     }
 
     // MARK: Sleep

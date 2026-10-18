@@ -28,3 +28,10 @@ public protocol HealthDataSource: Sendable {
     /// overlap `from...to`, oldest first.
     func restingHeartRateSamples(from: Date, to: Date) async throws -> [RestingHRSample]
 }
+
+/// Strength, core and HIIT workouts from every source, separate from
+/// `HealthDataSource` so only the sources that have them conform.
+public protocol StrengthWorkoutSource: Sendable {
+    /// Workouts that start on a local day from `from` through `to`, oldest first.
+    func strengthWorkouts(from: LocalDate, to: LocalDate) async throws -> [StrengthWorkoutSummary]
+}

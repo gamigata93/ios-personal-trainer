@@ -15,7 +15,7 @@ struct HomeViewModelTests {
     /// Runs from `-fakeRuns` for the seed plan, sleep from `-fakeSleep normal` and
     /// HRV and resting heart rate from `-fakeRecovery mock`, each of which can be
     /// made to fail on its own.
-    private actor FakeHealth: HealthDataSource {
+    private actor FakeHealth: HealthDataSource, StrengthWorkoutSource {
         var runsError: HealthDataError?
         var sleepError: HealthDataError?
         var hrvError: HealthDataError?
@@ -64,6 +64,13 @@ struct HomeViewModelTests {
             ).runningWorkouts(from: from, to: to)
         }
 
+        /// -fakeRuns strength: every strength session before today (14 and 21 Oct).
+        func strengthWorkouts(from: LocalDate, to: LocalDate) async throws -> [StrengthWorkoutSummary] {
+            try await FakeRunsHealthDataSource(
+                base: self, activePlan: { SeedPlan.plan(createdAt: .distantPast) }, clock: Wednesday(), calendar: HomeViewModelTests.utc
+            ).strengthWorkouts(from: from, to: to)
+        }
+
         func sleepSegments(from: Date, to: Date) async throws -> [SleepSegment] {
             if let sleepError { throw sleepError }
             return try await FakeSleepHealthDataSource(base: self, scenario: .normal, clock: Wednesday(), calendar: HomeViewModelTests.utc)
@@ -93,7 +100,7 @@ struct HomeViewModelTests {
         let runs = CompletedRunsStore(
             plans: planStore,
             loadCompletedRuns: LoadCompletedRuns(cache: runsCache),
-            refreshCompletedRuns: RefreshCompletedRuns(health: health, cache: runsCache, clock: Wednesday(), calendar: Self.utc),
+            refreshCompletedRuns: RefreshCompletedRuns(health: health, strength: health, cache: runsCache, clock: Wednesday(), calendar: Self.utc),
             clock: Wednesday()
         )
         let notes = makeCoachNotes(
@@ -163,8 +170,8 @@ struct HomeViewModelTests {
     @Test func theRingShowsTheAdherence() async {
         let home = makeHome(health: FakeHealth())
         await home.load()
-        #expect(home.overview?.planCard.ringValue == "86%")
-        #expect(home.overview?.planCard.ringAccessibilityLabel == "Plan adherence 86 percent")
+        #expect(home.overview?.planCard.ringValue == "89%")
+        #expect(home.overview?.planCard.ringAccessibilityLabel == "Plan adherence 89 percent")
         #expect(home.selectedDate == day(10, 28))
     }
 
@@ -204,7 +211,7 @@ struct HomeViewModelTests {
     @Test func runsAndSleepRefreshIndependently() async {
         let sleepFails = makeHome(health: FakeHealth(sleepError: .failed))
         await sleepFails.load()
-        #expect(sleepFails.overview?.planCard.ringValue == "86%")
+        #expect(sleepFails.overview?.planCard.ringValue == "89%")
         #expect(sleepFails.overview?.recovery.sleep.body == .failed)
 
         let runsFail = makeHome(health: FakeHealth(runsError: .failed))
@@ -222,7 +229,7 @@ struct HomeViewModelTests {
         await health.set(runsError: .locked)
         await home.refresh()
         #expect(home.overview?.lockedLine == "Your phone is locked. Showing progress from just now.")
-        #expect(home.overview?.planCard.ringValue == "86%")
+        #expect(home.overview?.planCard.ringValue == "89%")
         #expect(home.overview?.recovery.lockedNotice == nil)
     }
 
@@ -300,7 +307,9 @@ struct HomeViewModelTests {
         let month = try #require(screens.calendar.overview)
         #expect(month.title == "October 2026")
         #expect(month.selectedDate == day(10, 28))
+        // Runs and strength sessions both count.
         let completedInCalendar = month.cells.filter { $0.status == .completed }.count
+            + month.cells.filter { $0.strengthStatus == .completed }.count
         let completedOnHome = try #require(screens.home.overview).completedCount
         #expect(completedInCalendar == completedOnHome)
     }
@@ -453,7 +462,7 @@ struct HomeViewModelTests {
         #expect(calendar.notice?.text == "Marked Easy run as missed.")
         #expect(calendar.overview?.cells.first { $0.date == day(10, 21) }?.status == .missed)
         await screens.home.load()
-        #expect(screens.home.overview?.planCard.ringValue == "86%")
+        #expect(screens.home.overview?.planCard.ringValue == "89%")
         screens.home.showPreviousWeek()
         #expect(screens.home.overview?.week?.days.first { $0.date == day(10, 21) }?.status == .missed)
     }
@@ -480,7 +489,8 @@ struct HomeViewModelTests {
         for day in [12, 14, 16, 19, 23, 26] {
             #expect(cells.first { $0.date.day == day }?.accessibilityLabel.hasSuffix(", completed") == true)
         }
-        #expect(cells.first { $0.date.day == 21 }?.accessibilityLabel.hasSuffix(", not recorded") == true)
+        // 21 Oct: the run is not recorded; its strength session was done.
+        #expect(cells.first { $0.date.day == 21 }?.accessibilityLabel.contains("Easy run, not recorded, plus Strength: Calves and feet A, completed") == true)
 
         calendar.select(day(10, 21))
         await calendar.perform(try action(.markMissed, calendar))

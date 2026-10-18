@@ -37,7 +37,7 @@ public struct TemplatePlanGenerator: PlanGenerator {
             return PlanWeek(index: offset + 1, startDate: weekStart, phase: phase, targetKm: targets[offset], sessions: Self.sessions(context))
         }
 
-        return TrainingPlan(
+        let runsOnly = TrainingPlan(
             id: "",
             createdAt: Date(timeIntervalSinceReferenceDate: 0),
             generatedBy: Rules.generatedBy,
@@ -46,6 +46,7 @@ public struct TemplatePlanGenerator: PlanGenerator {
             planStart: start,
             weeks: weeks
         )
+        return runsOnly.replacing(sessions: runsOnly.sessions, strength: TemplateStrength.sessions(for: runsOnly))
     }
 
     // MARK: Phases and weekly targets

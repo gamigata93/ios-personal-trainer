@@ -17,6 +17,8 @@ public struct CalendarCell: Sendable, Equatable {
     public let status: SessionStatus?
     public let isRaceDay: Bool
     public let kind: Kind
+    public var strength: StrengthSession? = nil
+    public var strengthStatus: SessionStatus? = nil
 
     public var isSelectable: Bool { kind == .inPlan }
 }
@@ -48,20 +50,26 @@ public struct CalendarMonth: Sendable, Equatable {
 public enum CalendarMonthBuilder {
     /// Statuses come from `PlanProgress` (the same matcher and rules as Home),
     /// so Home and the calendar can never disagree.
-    public static func month(_ month: YearMonth, plan: TrainingPlan, runs: [CompletedRun], today: LocalDate) -> CalendarMonth {
-        let progress = PlanProgress(plan: plan, runs: runs, today: today)
+    public static func month(
+        _ month: YearMonth, plan: TrainingPlan, runs: [CompletedRun], strength: [CompletedStrength] = [], today: LocalDate
+    ) -> CalendarMonth {
+        let progress = PlanProgress(plan: plan, runs: runs, strength: strength, today: today)
         let sessionsByDay = Dictionary(plan.sessions.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
+        let strengthByDay = Dictionary(plan.strengthSessions.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
         let cells = (0..<month.dayCount).map { offset -> CalendarCell in
             let date = month.firstDay.adding(days: offset)
             let session = sessionsByDay[date]
             let kind: CalendarCell.Kind = date < plan.planStart ? .beforePlan : (date > plan.race.raceDate ? .afterRace : .inPlan)
+            let strength = kind == .inPlan ? strengthByDay[date] : nil
             return CalendarCell(
                 date: date,
                 isToday: date == today,
                 session: kind == .inPlan ? session : nil,
                 status: kind == .inPlan ? session.map(progress.status(of:)) : nil,
                 isRaceDay: date == plan.race.raceDate,
-                kind: kind
+                kind: kind,
+                strength: strength,
+                strengthStatus: strength.map(progress.status(of:))
             )
         }
         let leading = month.firstDay.weekday.index
@@ -88,7 +96,7 @@ public enum CalendarMonthBuilder {
     public static func defaultSelection(in month: CalendarMonth, plan: TrainingPlan, today: LocalDate) -> LocalDate? {
         if let cell = month.cell(on: today), cell.isSelectable { return today }
         if today > plan.race.raceDate, month.month.contains(plan.race.raceDate) { return plan.race.raceDate }
-        return month.cells.first { $0.session != nil }?.date
+        return month.cells.first { $0.session != nil || $0.strength != nil }?.date
     }
 }
 
@@ -109,7 +117,8 @@ public enum CalendarFormat {
     public static func accessibilityLabel(_ cell: CalendarCell) -> String {
         guard cell.isSelectable else { return "\(HomeFormat.spokenDate(cell.date)), outside the plan" }
         return HomeFormat.dayAccessibilityLabel(
-            date: cell.date, sessionName: cell.session?.name, isRaceDay: cell.isRaceDay, status: cell.status, isToday: cell.isToday
+            date: cell.date, sessionName: cell.session?.name, isRaceDay: cell.isRaceDay, status: cell.status, isToday: cell.isToday,
+            strength: cell.strength.flatMap { item in cell.strengthStatus.map { (item.name, $0) } }
         )
     }
 }

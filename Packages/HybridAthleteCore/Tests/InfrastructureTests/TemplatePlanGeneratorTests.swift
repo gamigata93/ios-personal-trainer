@@ -39,7 +39,7 @@ struct TemplatePlanGeneratorTests {
         #expect(result.planStart == LocalDate(year: 2026, month: 10, day: 12))
         #expect(result.weeks.count == 8)
         #expect(result.weeks.map(\.phase) == [.base, .base, .base, .build, .build, .build, .peak, .taper])
-        #expect(result.generatedBy == "template-v1")
+        #expect(result.generatedBy == "template-v2")
     }
 
     @Test func weeklyTargetsMatchTheHandCalculation() {

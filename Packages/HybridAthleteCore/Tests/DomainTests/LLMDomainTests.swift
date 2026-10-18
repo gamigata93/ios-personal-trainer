@@ -38,7 +38,24 @@ struct PromptBuilderTests {
             "Long run cap: 18 km",
             "Use only the training days listed",
             "No session on the race day or the day before",
+            "Strength focus: one of lower body, calves and feet, core, full body, mobility",
+            "Strength minutes: 15 to 60; at most 3 a week, one a day",
+            "Strength only on training days, alone or on an easy-run day; never on a tempo, threshold, interval or long-run day, "
+                + "never the day before a long run, never in race week",
         ])
+        #expect(PlanPromptBuilder.instructions.contains("Decide how many strength sessions each week needs (0 to 3)"))
+    }
+
+    @Test func planPromptCarriesFeedback() {
+        let base = WorkedRequest.request
+        let request = PlanRequest(
+            race: base.race, fitness: base.fitness, today: base.today, planKind: .tenK, source: .custom,
+            feedback: ["Mon 26 Oct run: pain, left knee, moderate."]
+        )
+        let lines = PlanPromptBuilder.build(request).facts
+        #expect(Array(lines.suffix(2)) == ["Recent feedback:", "Mon 26 Oct run: pain, left knee, moderate."])
+        // A retry keeps the feedback.
+        #expect(request.revised(notes: ["x"]).feedback == request.feedback)
     }
 
     @Test func noPaceLineWithoutPace() {

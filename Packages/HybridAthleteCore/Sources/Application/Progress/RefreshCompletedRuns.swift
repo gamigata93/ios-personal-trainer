@@ -6,12 +6,18 @@ import Domain
 /// days with the injected calendar.
 public struct RefreshCompletedRuns: Sendable {
     private let health: any HealthDataSource
+    private let strengthSource: (any StrengthWorkoutSource)?
     private let cache: any CompletedRunsCache
     private let clock: any Clock
     private let calendar: Calendar
 
-    public init(health: any HealthDataSource, cache: any CompletedRunsCache, clock: any Clock, calendar: Calendar) {
+    /// Without a `strengthSource`, no strength workouts are read.
+    public init(
+        health: any HealthDataSource, strength: (any StrengthWorkoutSource)? = nil, cache: any CompletedRunsCache, clock: any Clock,
+        calendar: Calendar
+    ) {
         self.health = health
+        self.strengthSource = strength
         self.cache = cache
         self.clock = clock
         self.calendar = calendar
@@ -49,16 +55,34 @@ public struct RefreshCompletedRuns: Sendable {
                 }
                 .filter { $0.localDate >= plan.planStart && $0.localDate <= end }
                 .sorted { ($0.localDate, $0.id) < ($1.localDate, $1.id) }
+            let strength = await strengthWorkouts(plan: plan, end: end)
             let now = clock.now()
-            try? await cache.save(CachedRuns(generatedAt: now, planId: plan.id, runs: runs))
-            return CompletedRunsResult(runs: runs, asOf: now, source: .fresh)
+            try? await cache.save(CachedRuns(generatedAt: now, planId: plan.id, runs: runs, strength: strength))
+            return CompletedRunsResult(runs: runs, strength: strength, asOf: now, source: .fresh)
         } catch {
             let cached = await cache.runs(for: plan)
             return CompletedRunsResult(
                 runs: cached?.runs ?? [],
+                strength: cached?.strength ?? [],
                 asOf: cached?.generatedAt,
                 source: error == .locked ? .locked : .cache
             )
+        }
+    }
+
+    /// Strength workouts on the plan's days. A failure here never fails the runs:
+    /// the cached ones are kept.
+    private func strengthWorkouts(plan: TrainingPlan, end: LocalDate) async -> [CompletedStrength] {
+        guard let strengthSource else { return [] }
+        do {
+            return try await strengthSource.strengthWorkouts(from: plan.planStart, to: end)
+                .map { CompletedStrength(
+                    id: $0.id, localDate: LocalDate(date: $0.startDate, calendar: calendar), durationSeconds: $0.durationSeconds, kind: $0.kind
+                ) }
+                .filter { $0.localDate >= plan.planStart && $0.localDate <= end }
+                .sorted { ($0.localDate, $0.id) < ($1.localDate, $1.id) }
+        } catch {
+            return await cache.runs(for: plan)?.strength ?? []
         }
     }
 }
