@@ -18,6 +18,87 @@ struct RaceSetupViewModelTests {
         CompositionRoot.previewRaceSetupViewModel(draft: draft, onBuild: onBuild)
     }
 
+    // MARK: Distance range and shortcuts
+
+    private struct NowClock: Clock {
+        func now() -> Date { Date() }
+    }
+
+    private func localized(_ draft: RaceSetupDraft, locale: Locale = Locale(identifier: "en_US"), onBuild: @escaping @MainActor (RaceSetup, PlanSource) -> Void = { _, _ in }) -> RaceSetupViewModel {
+        RaceSetupViewModel(
+            draft: draft, validateRaceSetup: ValidateRaceSetup(clock: NowClock(), calendar: calendar), calendar: calendar, locale: locale,
+            onBuild: onBuild, onBack: {}
+        )
+    }
+
+    private func suggestion(_ plan: PlanKind) -> PlanSuggestion {
+        PlanSuggestion(
+            plan: plan, label: .bestFit, reason: "", readiness: 1.2, weeks: 8, runsPerWeek: 3,
+            suggestedRaceDate: LocalDate(Date(), calendar: calendar).adding(days: 70).date(in: calendar)
+        )
+    }
+
+    @Test func chipsFillTheFieldAndClearTheError() {
+        let model = localized(.custom)
+        #expect(model.distanceText.isEmpty && model.selectedShortcut == nil)
+        #expect(model.distancePlaceholder == "10")
+        model.distanceText = "4"
+        model.markTouched(.distance)
+        #expect(model.visibleProblem == "Pick a race distance from 5 km up to a full marathon (42.195 km).")
+        #expect(model.visibleProblemField == .distance)
+        model.choose(.half)
+        #expect(model.distanceText == "21.1")
+        #expect(model.selectedShortcut == .half)
+        #expect(model.visibleProblem == nil)
+    }
+
+    @Test func typingSelectsTheMatchingChip() {
+        let model = localized(.custom)
+        model.distanceText = "21.1"
+        #expect(model.selectedShortcut == .half)
+        model.distanceText = "42,195"
+        #expect(model.selectedShortcut == .marathon)
+        model.distanceText = "15"
+        #expect(model.selectedShortcut == nil)
+        model.distanceText = ""
+        model.markTouched(.distance)
+        #expect(model.visibleProblem == "Enter a race distance.")
+        model.distanceText = "abc"
+        #expect(model.visibleProblem == "Enter a race distance.")
+    }
+
+    @Test(arguments: [(PlanKind.fiveK, "5", DistanceShortcut.fiveK), (.tenK, "10", .tenK), (.halfMarathon, "21.1", .half), (.marathon, "42.2", .marathon)])
+    func suggestedPlansPrefillTheirChip(_ plan: PlanKind, _ text: String, _ chip: DistanceShortcut) {
+        let model = localized(.suggested(suggestion(plan), calendar: calendar))
+        #expect(model.distanceText == text)
+        #expect(model.selectedShortcut == chip)
+    }
+
+    @Test func aCommaLocaleShowsAndReadsCommas() {
+        let model = localized(.suggested(suggestion(.halfMarathon), calendar: calendar), locale: Locale(identifier: "bg_BG"))
+        #expect(model.distanceText == "21,1")
+        model.distanceText = "42.2"
+        #expect(model.selectedShortcut == .marathon)
+        model.choose(.marathon)
+        #expect(model.distanceText == "42,2")
+    }
+
+    @Test func buildStaysUnavailableUntilTheDistanceIsInRange() {
+        var built: RaceSetup?
+        let model = localized(.suggested(suggestion(.tenK), calendar: calendar)) { setup, _ in built = setup }
+        model.toggle(.tuesday)
+        model.toggle(.sunday)
+        #expect(model.canBuild)
+        for text in ["4.99", "42.21", "50", ""] {
+            model.distanceText = text
+            #expect(!model.canBuild, "\(text)")
+        }
+        model.distanceText = "42,2"
+        #expect(model.canBuild)
+        model.build()
+        #expect(built?.distanceKm == 42.2)
+    }
+
     @Test func nothingIsSelectedAtFirst() {
         let model = viewModel(.suggested(suggestion, calendar: calendar))
         #expect(Weekday.allCases.allSatisfy { !model.isSelected($0) })

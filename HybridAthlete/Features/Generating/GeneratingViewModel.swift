@@ -71,6 +71,8 @@ final class GeneratingViewModel {
         switch error {
         case .modelFailed(let failure):
             errorText?.message(failure) ?? "Your plan couldn't be built. Try again."
+        case .raceOutOfScope:
+            RaceSetupIssue.distanceOutOfScope.message
         case .invalidSetup(let issues):
             issues.first?.message ?? "Some race details need a change."
         case .generationFailed:

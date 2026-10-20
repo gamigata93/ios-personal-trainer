@@ -207,6 +207,7 @@ enum Theme {
         static let detailBlocks: CGFloat = 24
         static let detailBackToTitle: CGFloat = 14
         static let chipRow: CGFloat = 8
+        static let distanceChipHorizontal: CGFloat = 18
         static let detailChipHorizontal: CGFloat = 10
         static let detailChipVertical: CGFloat = 6
         static let statTiles: CGFloat = 8
@@ -467,6 +468,9 @@ enum Theme {
         static let rowLabel = body(15, weight: .semibold)
         static let rowValue = body(14)
         static let caption = body(13)
+        /// Race setup: the distance helper line and the non-medical note.
+        static let distanceHelp = body(12)
+        static let distanceChip = body(14, weight: .semibold)
         static let noticeTitle = body(14, weight: .bold)
         static let noticeBody = body(14)
         static let secondaryButton = body(15, weight: .semibold)

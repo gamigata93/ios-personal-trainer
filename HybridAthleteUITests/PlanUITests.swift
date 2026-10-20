@@ -27,7 +27,7 @@ final class PlanUITests: XCTestCase {
         }
         XCTAssertEqual(app.staticTexts["raceSetup.dayCount"].label, "3 days a week")
 
-        let distance = app.textFields["raceSetup.distance"]
+        let distance = app.textFields["raceDistanceField"]
         distance.tap()
         distance.typeText("10")
         app.buttons["raceSetup.keyboardDone"].tap()
@@ -47,7 +47,7 @@ final class PlanUITests: XCTestCase {
         app.buttons["startingPoint.continue"].tap()
 
         XCTAssertTrue(element(app, "raceSetup.prefilled").waitForExistence(timeout: 5))
-        XCTAssertEqual(app.textFields["raceSetup.distance"].value as? String, "5")
+        XCTAssertEqual(app.textFields["raceDistanceField"].value as? String, "5")
         XCTAssertNotEqual(app.buttons["raceSetup.raceDay"].value as? String, "Choose a date")
         keepScreenshot(of: app, named: "Race setup - suggested")
 

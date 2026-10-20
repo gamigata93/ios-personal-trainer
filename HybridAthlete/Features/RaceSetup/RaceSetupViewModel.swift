@@ -29,6 +29,8 @@ final class RaceSetupViewModel {
 
     private let validateRaceSetup: ValidateRaceSetup
     private let calendar: Calendar
+    /// Parses the distance (both "." and "," work) and formats chip values.
+    private let locale: Locale
     private let onBuild: @MainActor (RaceSetup, PlanSource) -> Void
     private let onBack: @MainActor () -> Void
 
@@ -36,16 +38,18 @@ final class RaceSetupViewModel {
         draft: RaceSetupDraft,
         validateRaceSetup: ValidateRaceSetup,
         calendar: Calendar,
+        locale: Locale = .current,
         onBuild: @escaping @MainActor (RaceSetup, PlanSource) -> Void,
         onBack: @escaping @MainActor () -> Void
     ) {
         self.draft = draft
         self.validateRaceSetup = validateRaceSetup
         self.calendar = calendar
+        self.locale = locale
         self.onBuild = onBuild
         self.onBack = onBack
         self.raceDate = draft.raceDate
-        self.distanceText = draft.distanceKm.map(Self.distanceText) ?? ""
+        self.distanceText = draft.distanceKm.map { Self.distanceText(Decimal.exact($0), locale: locale) } ?? ""
     }
 
     // MARK: Header
@@ -56,7 +60,26 @@ final class RaceSetupViewModel {
         return StartingPointViewModel.title(suggestion.plan)
     }
 
-    var distancePlaceholder: String { "42" }
+    var distancePlaceholder: String { "10" }
+
+    /// "From 5 km up to a full marathon (42.195 km)."
+    let distanceHelp = "From 5 km up to a full marathon (42.195 km)."
+
+    /// Shown under Build my plan.
+    let medicalNote = "General training guidance, not medical advice. If you have health concerns, check with a doctor before starting a race build."
+
+    // MARK: Distance shortcuts
+
+    /// The chip matching the typed distance (within 0.05 km), if any.
+    var selectedShortcut: DistanceShortcut? {
+        DistanceShortcut.selected(for: parsedDistanceKm)
+    }
+
+    /// Fills the field with the shortcut and clears any distance problem.
+    func choose(_ shortcut: DistanceShortcut) {
+        distanceText = Self.distanceText(shortcut.value, locale: locale)
+        touched.remove(.distance)
+    }
 
     // MARK: Race day
 
@@ -132,12 +155,17 @@ final class RaceSetupViewModel {
 
     var problems: [Problem] {
         guard let setup else { return [Self.missingRaceDay] + validatedProblems(raceDate: validateRaceSetup.today.adding(days: 12 * 7)) }
-        return validateRaceSetup.execute(setup).map { Problem(message: $0.message, field: $0.field) }
+        return validateRaceSetup.execute(setup, parsedDistanceKm: .some(parsedDistanceKm)).map { Problem(message: $0.message, field: $0.field) }
     }
 
     /// The first problem, once its field was touched or Build was tapped.
     var visibleProblem: String? {
         problems.first { showsAllProblems || touched.contains($0.field) }?.message
+    }
+
+    /// The field of `visibleProblem`.
+    var visibleProblemField: RaceSetupField? {
+        problems.first { showsAllProblems || touched.contains($0.field) }?.field
     }
 
     var canBuild: Bool { problems.isEmpty }
@@ -166,14 +194,19 @@ final class RaceSetupViewModel {
     /// so the other fields still report while the date is missing.
     private func validatedProblems(raceDate: LocalDate) -> [Problem] {
         let placeholder = RaceSetup(distanceKm: distanceKm, elevationGainM: elevationGainM, raceDate: raceDate, trainingDays: trainingDays)
-        return validateRaceSetup.execute(placeholder)
+        return validateRaceSetup.execute(placeholder, parsedDistanceKm: .some(parsedDistanceKm))
             .filter { $0.field != .raceDay }
             .map { Problem(message: $0.message, field: $0.field) }
     }
 
-    /// Accepts "21.1" and "21,1". Blank or unreadable is 0, which the validator rejects.
+    /// "21.1" and "21,1" both parse, whatever the locale; nil when blank or unreadable.
+    private var parsedDistanceKm: Decimal? {
+        RaceDistanceParser.parse(distanceText, locale: locale)
+    }
+
+    /// The parsed distance; 0 when unreadable (the validator reports it as missing).
     private var distanceKm: Double {
-        Self.number(distanceText) ?? 0
+        parsedDistanceKm.map { NSDecimalNumber(decimal: $0).doubleValue } ?? 0
     }
 
     /// Blank is 0; unreadable is -1, which the validator rejects.
@@ -187,7 +220,9 @@ final class RaceSetupViewModel {
         Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "."))
     }
 
-    private static func distanceText(_ km: Double) -> String {
-        km.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
+    /// "21.1" (or "21,1" where the locale uses a comma), never grouped.
+    private static func distanceText(_ km: Decimal, locale: Locale) -> String {
+        let separator = locale.decimalSeparator ?? "."
+        return DistanceText.km(km).replacingOccurrences(of: ".", with: separator)
     }
 }

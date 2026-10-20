@@ -3,6 +3,8 @@ import Domain
 
 /// Why a plan was not created. Nothing is saved in any of these cases.
 public enum PlanCreationError: Error, Sendable, Equatable {
+    /// The race distance is outside what the app plans (5 km to a full marathon).
+    case raceOutOfScope(distanceKm: Double)
     case invalidSetup([RaceSetupIssue])
     case generationFailed
     /// A model failed (unavailable, quota, network, broken plan...).
@@ -20,15 +22,19 @@ public struct CreatePlan: Sendable {
     private let clock: any Clock
     private let calendar: Calendar
     private let makeID: @Sendable () -> String
+    private let scope: RaceDistanceScope
 
+    /// `scope` is the app's unless DEBUG `-allowAnyDistance` widens it.
     public init(
         generator: any PlanGenerator,
         plans: any PlanRepository,
         cache: any SnapshotCache,
         clock: any Clock,
         calendar: Calendar,
-        makeID: @escaping @Sendable () -> String
+        makeID: @escaping @Sendable () -> String,
+        scope: RaceDistanceScope = .app
     ) {
+        self.scope = scope
         self.generator = generator
         self.plans = plans
         self.cache = cache
@@ -38,8 +44,9 @@ public struct CreatePlan: Sendable {
     }
 
     public func execute(_ setup: RaceSetup, source: PlanSource) async throws(PlanCreationError) -> TrainingPlan {
+        guard scope.contains(setup.distanceKm) else { throw .raceOutOfScope(distanceKm: setup.distanceKm) }
         let today = LocalDate(clock.now(), calendar: calendar)
-        let issues = RaceSetupValidator.issues(setup, today: today)
+        let issues = RaceSetupValidator.issues(setup, today: today, scope: scope)
         guard issues.isEmpty else { throw .invalidSetup(issues) }
 
         let request = PlanRequest(

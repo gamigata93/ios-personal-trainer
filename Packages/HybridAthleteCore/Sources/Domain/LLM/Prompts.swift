@@ -89,7 +89,7 @@ public enum PlanPromptBuilder {
         let race = request.race
         let fitness = request.fitness
         var lines = [
-            "Race: \(HomeFormat.km(race.distanceKm)) km on \(race.raceDate) (\(HomeFormat.shortWeekday(race.raceDate.weekday)))",
+            "Race: \(DistanceText.km(race.distanceKm)) km on \(race.raceDate) (\(HomeFormat.shortWeekday(race.raceDate.weekday)))",
             "Plan starts: \(request.planStart) (\(HomeFormat.shortWeekday(request.planStart.weekday)))",
             "Weeks: \(request.weekCount)",
             "Training days: " + race.trainingDays.sorted().map(\.name).joined(separator: ", "),

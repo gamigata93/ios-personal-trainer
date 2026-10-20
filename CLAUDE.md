@@ -18,6 +18,8 @@ sample model) as part of the first task.
 ## Scope: what is in and out
 In: HealthKit read access, local database, LLM coach, plan generation, calendar,
 onboarding with a fitness baseline.
+The app plans races from 5 km up to a full marathon (AppScope: 5.0 to 42.2 km, 42.195 as the label).
+Only creation is restricted (Race setup and CreatePlan, error RaceOutOfScope); existing plans keep working.
 Out (do not build or reference): any FIT, GPX or TCX file import; code specific
 to any one workout app (WorkOutdoors etc.); a server or API of our own; HealthKit
 writes (read-only); Android; push notifications (the morning check shows on app open).
@@ -78,7 +80,11 @@ only) -> Starting point (loads in the background) -> Race setup -> Generating.
 3. Race setup: race day, distance (km), elevation gain (m), and which weekdays
    the user can train. No default training days: nothing is preselected or
    restored, and the user picks at least 2 and at most 6. A suggested plan
-   prefills its distance and race day; "Custom race" starts blank.
+   prefills its distance and race day; "Custom race" starts blank. The distance has chips 5K, 10K,
+   Half (21.1) and Marathon (42.2) that fill the field (the chip within 0.05 km is selected), a helper
+   line "From 5 km up to a full marathon (42.195 km).", and locale-safe parsing (RaceDistanceParser: "."
+   and "," both work). Blank reads "Enter a race distance."; outside the range "Pick a race distance from
+   5 km up to a full marathon (42.195 km)." A non-medical note sits under Build my plan.
 4. Generating: plan generation goes through the PlanGenerator port. The default is Automatic:
    Private Cloud Compute (light), then on-device, each with 2 validated attempts, then
    TemplatePlanGenerator (generatedBy "template-v2", with strength). Then the app opens Home.
@@ -271,7 +277,9 @@ Main app (floating tab bar: Home, Calendar):
   -feedbackPopup lets the after-workout popup open with fake Health (it never does otherwise); -fakeAdjust
   <ok|fail> gives canned suggested changes (fail: the rules); without it, fakes use the rules. -fakeRuns also
   gives a 32-minute strength workout on every strength session's original date before today.
-  -planGenerator also takes auto.
+  -planGenerator also takes auto. -allowAnyDistance lifts the race range (any distance up to 250 km) for
+  that run. The Model Lab's plan draft has fixed races R1 (10 km, 8 weeks), R2 (half, 12 weeks), R3 (15 km,
+  10 weeks, Tue/Thu/Sat/Sun) and R4 (30 km, 14 weeks, Mon/Wed/Fri/Sun), with fallback fitness 20 km a week.
 - The snapshot cache holds summaries only (never raw routes, workout lists or the date
   of birth). Reference data and user data stay separate.
 - The raw JSON view exists only in DEBUG builds.

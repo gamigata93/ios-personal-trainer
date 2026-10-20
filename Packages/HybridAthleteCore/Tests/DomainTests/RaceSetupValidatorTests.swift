@@ -31,11 +31,21 @@ struct RaceSetupValidatorTests {
     }
 
     @Test func distanceBoundaries() {
-        #expect(issues(km: 0.9) == [.distanceOutOfRange])
-        #expect(issues(km: 1).isEmpty)
-        #expect(issues(km: 250).isEmpty)
-        #expect(issues(km: 251) == [.distanceOutOfRange])
-        #expect(RaceSetupIssue.distanceOutOfRange.message == "Enter a distance between 1 and 250 km.")
+        // 5 km up to a full marathon (42.2 accepted), inclusive and exact.
+        for km in [4.99, 42.21, 45, 50, 0, -5] {
+            #expect(issues(km: km) == [.distanceOutOfScope], "\(km)")
+        }
+        for km in [5.0, 5.01, 42.195, 42.2] {
+            #expect(issues(km: km).isEmpty, "\(km)")
+        }
+        #expect(RaceSetupIssue.distanceOutOfScope.message == "Pick a race distance from 5 km up to a full marathon (42.195 km).")
+        #expect(RaceSetupIssue.distanceMissing.message == "Enter a race distance.")
+        // Blank or unreadable text (parsed as nil) is missing; DEBUG -allowAnyDistance widens the range.
+        let setup = RaceSetup(distanceKm: 0, elevationGainM: 0, raceDate: start.adding(days: 55), trainingDays: [.tuesday, .sunday])
+        #expect(RaceSetupValidator.issues(setup, today: today, parsedDistanceKm: .some(nil)) == [.distanceMissing])
+        #expect(RaceSetupValidator.distanceIssue(RaceDistanceParser.parse("abc", locale: Locale(identifier: "en_US"))) == .distanceMissing)
+        #expect(RaceSetupValidator.distanceIssue(50, scope: .unrestricted) == nil)
+        #expect(RaceSetupValidator.distanceIssue(251, scope: .unrestricted) == .distanceOutOfScope)
     }
 
     @Test func elevationBoundaries() {

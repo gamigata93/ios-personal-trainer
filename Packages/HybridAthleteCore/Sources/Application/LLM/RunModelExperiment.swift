@@ -206,12 +206,59 @@ public struct RunModelExperiment: Sendable {
     }
 }
 
-/// The Lab's plan draft request: the stored race setup when a plan exists,
-/// otherwise a fixed 10 km race 8 weeks away on Mon/Wed/Fri; fitness from the
-/// cached summaries. Never saves anything.
+/// The Lab's fixed races, to see how distances behave under the plan rules.
+public enum LabRaceFixture: String, Sendable, Equatable, CaseIterable, Identifiable {
+    /// 10 km, 8 weeks, Mon/Wed/Fri.
+    case r1
+    /// Half marathon (21.1 km), 12 weeks, Mon/Wed/Fri/Sun.
+    case r2
+    /// 15 km, 10 weeks, Tue/Thu/Sat/Sun.
+    case r3
+    /// 30 km, 14 weeks, Mon/Wed/Fri/Sun.
+    case r4
+
+    public var id: String { rawValue }
+
+    public var distanceKm: Double {
+        switch self {
+        case .r1: 10
+        case .r2: 21.1
+        case .r3: 15
+        case .r4: 30
+        }
+    }
+
+    public var weeks: Int {
+        switch self {
+        case .r1: 8
+        case .r2: 12
+        case .r3: 10
+        case .r4: 14
+        }
+    }
+
+    public var trainingDays: Set<Weekday> {
+        switch self {
+        case .r1: [.monday, .wednesday, .friday]
+        case .r2, .r4: [.monday, .wednesday, .friday, .sunday]
+        case .r3: [.tuesday, .thursday, .saturday, .sunday]
+        }
+    }
+
+    /// "R3 · 15 km · 10 weeks".
+    public var title: String {
+        "\(rawValue.uppercased()) · \(DistanceText.km(distanceKm)) km · \(weeks) weeks"
+    }
+}
+
+/// The Lab's plan draft request: the stored race setup when a plan exists (and
+/// no fixture is picked), otherwise a fixture (R1 by default); fitness from the
+/// cached summaries, or 20 km a week with a 12 km longest run when nothing is
+/// cached. Never saves anything.
 public struct BuildLabPlanRequest: Sendable {
-    public static let sampleWeeks = 8
-    public static let sampleDistanceKm = 10.0
+    public static let fallbackWeeklyKm = 20.0
+    public static let fallbackLongestRunKm = 12.0
+
 
     private let fitness: LoadFitnessSummary
     private let clock: any Clock
@@ -225,20 +272,29 @@ public struct BuildLabPlanRequest: Sendable {
 
     /// With a plan, the request it was built from: its race and its start (the
     /// day before the plan start is the "today" that yields that start).
-    public func execute(plan: TrainingPlan?) async -> PlanRequest {
-        let today = plan.map { $0.planStart.adding(days: -1) } ?? LocalDate(date: clock.now(), calendar: calendar)
-        let race = plan?.race ?? RaceSetup(
-            distanceKm: Self.sampleDistanceKm,
+    public func execute(plan: TrainingPlan?, fixture: LabRaceFixture? = nil) async -> PlanRequest {
+        let usesPlan = fixture == nil ? plan : nil
+        let chosen = fixture ?? .r1
+        let today = usesPlan.map { $0.planStart.adding(days: -1) } ?? LocalDate(date: clock.now(), calendar: calendar)
+        let race = usesPlan?.race ?? RaceSetup(
+            distanceKm: chosen.distanceKm,
             elevationGainM: 0,
-            // The Sunday of the 8th plan week.
-            raceDate: PlanCalendar.planStart(today: today).adding(days: 7 * Self.sampleWeeks - 1),
-            trainingDays: [.monday, .wednesday, .friday]
+            // The Sunday of the fixture's last plan week.
+            raceDate: PlanCalendar.planStart(today: today).adding(days: 7 * chosen.weeks - 1),
+            trainingDays: chosen.trainingDays
         )
+        var summary = await fitness.execute()
+        if usesPlan == nil, summary.weeklyKm <= 0 {
+            summary = FitnessSummary(
+                weeklyKm: Self.fallbackWeeklyKm, longestRunKm: Self.fallbackLongestRunKm, avgPaceSecPerKm: summary.avgPaceSecPerKm,
+                vo2Max: summary.vo2Max, restingHeartRate: summary.restingHeartRate, ageYears: summary.ageYears
+            )
+        }
         return PlanRequest(
             race: race,
-            fitness: await fitness.execute(),
+            fitness: summary,
             today: today,
-            planKind: plan?.planKind ?? PlanKind.from(distanceKm: race.distanceKm),
+            planKind: usesPlan?.planKind ?? PlanKind.from(distanceKm: race.distanceKm),
             source: .custom
         )
     }

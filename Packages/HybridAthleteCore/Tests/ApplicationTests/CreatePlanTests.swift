@@ -50,6 +50,30 @@ struct CreatePlanTests {
         CreatePlan(generator: generator, plans: plans, cache: cache, clock: FakeClock(FakeHealthDataSource.now), calendar: calendar, makeID: { "plan-1" })
     }
 
+    @Test func outOfScopeDistancesSaveNothing() async throws {
+        for km in [4.99, 50] {
+            let plans = FakePlanRepository()
+            let generator = FakeGenerator(.success(validPlan()))
+            let race = RaceSetup(distanceKm: km, elevationGainM: 0, raceDate: setup.raceDate, trainingDays: setup.trainingDays)
+            await #expect(throws: PlanCreationError.raceOutOfScope(distanceKm: km)) {
+                try await useCase(generator, plans: plans).execute(race, source: .custom)
+            }
+            #expect(await plans.saveCount == 0)
+            #expect(await generator.requests.isEmpty)
+        }
+    }
+
+    @Test func aWidenedScopeAcceptsFiftyKilometres() async throws {
+        let plans = FakePlanRepository()
+        let race = RaceSetup(distanceKm: 50, elevationGainM: 0, raceDate: setup.raceDate, trainingDays: setup.trainingDays)
+        let useCase = CreatePlan(
+            generator: FakeGenerator(.success(validPlan())), plans: plans, cache: FakeSnapshotCache(), clock: FakeClock(FakeHealthDataSource.now),
+            calendar: calendar, makeID: { "plan-1" }, scope: .unrestricted
+        )
+        _ = try await useCase.execute(race, source: .custom)
+        #expect(await plans.saveCount == 1)
+    }
+
     @Test func successSavesOnceWithInjectedIdAndDate() async throws {
         let plans = FakePlanRepository()
         let plan = try await useCase(FakeGenerator(.success(validPlan())), plans: plans).execute(setup, source: .custom)

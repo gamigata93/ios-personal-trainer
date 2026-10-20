@@ -113,6 +113,21 @@ struct ModelLabView: View {
                     }
                 }
             }
+            if viewModel.experiment == .planDraft {
+                FlowLayout(spacing: Theme.Spacing.labPills, lineSpacing: Theme.Spacing.labPills) {
+                    if viewModel.hasPlan {
+                        LabPill(title: "Your plan's race", isSelected: viewModel.planFixture == nil, identifier: "modelLabRace-plan") {
+                            viewModel.planFixture = nil
+                        }
+                    }
+                    ForEach(LabRaceFixture.allCases) { fixture in
+                        let isSelected = viewModel.planFixture == fixture || (!viewModel.hasPlan && viewModel.planFixture == nil && fixture == .r1)
+                        LabPill(title: fixture.title, isSelected: isSelected, identifier: "modelLabRace-\(fixture.rawValue)") {
+                            viewModel.planFixture = fixture
+                        }
+                    }
+                }
+            }
             if viewModel.experiment == .coachNote {
                 Text("The real note pipeline on one of your completed sessions, newest first. Nothing is saved.")
                     .font(Theme.Typography.labMeta)

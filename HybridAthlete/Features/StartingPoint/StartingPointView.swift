@@ -402,7 +402,7 @@ struct StartingPointView: View {
                     .font(Theme.Typography.sectionTitle)
                     .foregroundStyle(Theme.Palette.text)
                     .accessibilityAddTraits(.isHeader)
-                Text("Pick one to start, or build your own race.")
+                Text("Pick one to start, or plan a custom race from 5 km to a full marathon.")
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Theme.Palette.mutedText)
             }

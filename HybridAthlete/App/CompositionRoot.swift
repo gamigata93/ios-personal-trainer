@@ -48,7 +48,9 @@ enum CompositionRoot {
             adjusting: models.adjusting, availability: models.availability, models: CoachModelPreference.automatic.candidates
         )
         var asksFeedback = health.usesRealHealth
+        var raceScope = RaceDistanceScope.app
         #if DEBUG
+        if options.allowsAnyDistance { raceScope = .unrestricted }
         if let scenario = options.fakeLLM {
             models = LanguageModels.fake(scenario, clock: clock)
         }
@@ -154,6 +156,7 @@ enum CompositionRoot {
             models: models,
             notes: notes,
             feedback: feedbackInputs,
+            raceScope: raceScope,
             prepareStorage: prepareStorage
         )
     }
@@ -397,6 +400,7 @@ enum CompositionRoot {
         models: LanguageModels,
         notes: NoteInputs,
         feedback: FeedbackInputs,
+        raceScope: RaceDistanceScope,
         prepareStorage: @escaping @MainActor () async -> Void
     ) -> RootViewModel {
         let clock = clock
@@ -418,7 +422,7 @@ enum CompositionRoot {
             makeRaceSetup: { draft, onBuild, onBack in
                 RaceSetupViewModel(
                     draft: draft,
-                    validateRaceSetup: ValidateRaceSetup(clock: clock, calendar: .current),
+                    validateRaceSetup: ValidateRaceSetup(clock: clock, calendar: .current, scope: raceScope),
                     calendar: .current,
                     onBuild: onBuild,
                     onBack: onBack
@@ -434,7 +438,8 @@ enum CompositionRoot {
                         cache: health.cache,
                         clock: clock,
                         calendar: .current,
-                        makeID: { UUID().uuidString }
+                        makeID: { UUID().uuidString },
+                        scope: raceScope
                     ),
                     onSuccess: onSuccess,
                     onBack: onBack,
@@ -757,6 +762,7 @@ enum CompositionRoot {
     /// - `-fakeHeartRateHigh`: easy runs average 153 bpm instead of 139.
     /// - `-coachModel <auto|template|onDevice|pcc.light|pcc.moderate|pcc.deep|anthropic.haiku55|...>`: the coach notes'
     ///   model for this run, over the Lab's choice.
+    /// - `-allowAnyDistance`: race setup and plan creation accept any distance up to 250 km (old fixtures, ultras).
     /// - `-feedbackPopup`: with fake Health, the after-workout popup opens by itself (it always does with real Health).
     /// - `-fakeAdjust <ok|fail>`: canned suggested changes (fail: the rules write them); without it, fakes use the rules.
     struct DebugOptions {
@@ -782,6 +788,7 @@ enum CompositionRoot {
         let coachModel: CoachModelPreference?
         let feedbackPopup: Bool
         let fakeAdjust: FakeAdjustScenario?
+        let allowsAnyDistance: Bool
 
         init(arguments: [String]) {
             func value(after flag: String) -> String? {
@@ -805,6 +812,7 @@ enum CompositionRoot {
             fakeHeartRateHigh = arguments.contains("-fakeHeartRateHigh")
             coachModel = value(after: "-coachModel").flatMap(CoachModelPreference.init(id:))
             feedbackPopup = arguments.contains("-feedbackPopup")
+            allowsAnyDistance = arguments.contains("-allowAnyDistance")
             fakeAdjust = value(after: "-fakeAdjust").flatMap(FakeAdjustScenario.init(rawValue:))
             today = value(after: "-today").flatMap { LocalDate($0) }
             usesFakes = arguments.contains("-useInMemoryStores") || personaID != nil || simulate != nil || seedsPlan

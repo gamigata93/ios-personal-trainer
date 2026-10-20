@@ -64,7 +64,7 @@ final class ModelLabUITests: XCTestCase {
         for day in ["monday", "wednesday", "friday"] {
             app.buttons["raceSetup.day.\(day)"].tap()
         }
-        let distance = app.textFields["raceSetup.distance"]
+        let distance = app.textFields["raceDistanceField"]
         distance.tap()
         distance.typeText("10")
         app.buttons["raceSetup.keyboardDone"].tap()

@@ -173,7 +173,7 @@ public enum AdjustmentPromptBuilder {
     ) -> Prompt {
         var facts = [
             "Trigger: " + (trigger.feedback.line ?? trigger.report.line),
-            "Race: \(HomeFormat.km(plan.race.distanceKm)) km on \(plan.race.raceDate)",
+            "Race: \(DistanceText.km(plan.race.distanceKm)) km on \(plan.race.raceDate)",
             "Training days: " + plan.race.trainingDays.sorted().map(\.name).joined(separator: ", "),
             "Days you may change: \(window.start) (\(HomeFormat.shortWeekday(window.start.weekday))) to \(window.end) (\(HomeFormat.shortWeekday(window.end.weekday)))",
             "Current schedule:",

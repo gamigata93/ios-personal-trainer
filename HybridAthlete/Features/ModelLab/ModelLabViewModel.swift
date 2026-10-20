@@ -212,7 +212,7 @@ final class ModelLabViewModel: Identifiable {
     private func makeExperiment() async -> ModelExperiment? {
         switch experiment {
         case .planDraft:
-            return .planDraft(await buildPlanRequest.execute(plan: plans.plan))
+            return .planDraft(await buildPlanRequest.execute(plan: plans.plan, fixture: planFixture))
         case .coachNote:
             if coachInput == .sample { return .workoutNote(.sampleTempo) }
             guard let plan = plans.plan else {
@@ -229,6 +229,13 @@ final class ModelLabViewModel: Identifiable {
             return .workoutNote(prepared.request)
         }
     }
+
+    // MARK: Plan draft input
+
+    /// A fixed race (R1 to R4); nil uses your plan's race, or R1 without a plan.
+    var planFixture: LabRaceFixture?
+
+    var hasPlan: Bool { plans.plan != nil }
 
     // MARK: Coach notes model
 

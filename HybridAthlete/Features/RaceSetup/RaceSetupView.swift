@@ -13,9 +13,17 @@ struct RaceSetupView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.formRows) {
                 header
                 raceDayField
-                HStack(alignment: .top, spacing: Theme.Spacing.betweenButtons) {
-                    numberField("Distance (km)", text: $viewModel.distanceText, prompt: viewModel.distancePlaceholder, field: .distance, decimal: true)
-                    numberField("Elevation gain (m)", text: $viewModel.elevationText, prompt: "0", field: .elevation, decimal: false)
+                VStack(alignment: .leading, spacing: Theme.Spacing.compact) {
+                    HStack(alignment: .top, spacing: Theme.Spacing.betweenButtons) {
+                        numberField("Distance (km)", text: $viewModel.distanceText, prompt: viewModel.distancePlaceholder, field: .distance, decimal: true)
+                        numberField("Elevation gain (m)", text: $viewModel.elevationText, prompt: "0", field: .elevation, decimal: false)
+                    }
+                    Text(viewModel.distanceHelp)
+                        .font(Theme.Typography.distanceHelp)
+                        .foregroundStyle(Theme.Palette.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("raceDistanceHelp")
+                    distanceChips
                 }
                 days
                 buildButton
@@ -154,9 +162,37 @@ struct RaceSetupView: View {
                 .frame(minHeight: Theme.Size.minTouchTarget)
                 .background(fieldBackground(isProblem: showsProblem(field)))
                 .accessibilityLabel(title)
-                .accessibilityIdentifier(field == .distance ? "raceSetup.distance" : "raceSetup.elevation")
+                .accessibilityIdentifier(field == .distance ? "raceDistanceField" : "raceSetup.elevation")
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Distance shortcuts
+
+    private var distanceChips: some View {
+        FlowLayout(spacing: Theme.Spacing.chipRow, lineSpacing: Theme.Spacing.chipRow) {
+            ForEach(DistanceShortcut.allCases, id: \.self) { shortcut in
+                let selected = viewModel.selectedShortcut == shortcut
+                Button {
+                    viewModel.choose(shortcut)
+                } label: {
+                    Text(shortcut.rawValue)
+                        .font(Theme.Typography.distanceChip)
+                        .foregroundStyle(selected ? Theme.Palette.onAccent : Theme.Palette.mutedText)
+                        .padding(.horizontal, Theme.Spacing.distanceChipHorizontal)
+                        .frame(minHeight: Theme.Size.minTouchTarget)
+                        .background(selected ? Theme.Palette.accent : Theme.Palette.card, in: Capsule())
+                        .overlay {
+                            Capsule().strokeBorder(selected ? .clear : Theme.Palette.cardBorder, lineWidth: Theme.Size.borderWidth)
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(shortcut.accessibilityLabel)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityIdentifier("distanceChip-\(shortcut.rawValue)")
+            }
+        }
     }
 
     // MARK: Days
@@ -215,7 +251,7 @@ struct RaceSetupView: View {
                 Text(problem)
                     .font(Theme.Typography.fieldIssue)
                     .foregroundStyle(Theme.Palette.statusRed)
-                    .accessibilityIdentifier("raceSetup.problem")
+                    .accessibilityIdentifier(viewModel.visibleProblemField == .distance ? "raceDistanceError" : "raceSetup.problem")
             }
             // Stays tappable while invalid so a tap can reveal what is missing.
             Button("Build my plan") {
@@ -226,6 +262,11 @@ struct RaceSetupView: View {
             .opacity(viewModel.canBuild ? 1 : Theme.Opacity.disabledButton)
             .accessibilityHint(viewModel.canBuild ? "" : "Some details are still missing")
             .accessibilityIdentifier("raceSetup.build")
+            Text(viewModel.medicalNote)
+                .font(Theme.Typography.distanceHelp)
+                .foregroundStyle(Theme.Palette.mutedText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("raceSetup.medicalNote")
         }
         .padding(.top, Theme.Spacing.compact)
     }
